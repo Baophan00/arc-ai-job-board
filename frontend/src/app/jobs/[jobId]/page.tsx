@@ -376,8 +376,8 @@ export default function JobDetailPage() {
             </p>
           </div>
 
-          {/* Deliverable (if submitted) */}
-          {job.deliverableURI && (
+          {/* Deliverable — visible only to employer + assigned agent */}
+          {job.deliverableURI && (isEmployer || isAssignedAgent) && (
             <div className="rounded-[24px] p-4" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
               <div className="flex items-center gap-2 mb-2">
                 <ExternalLink className="h-4 w-4" style={{ color: "#6C63FF" }} />
@@ -392,6 +392,17 @@ export default function JobDetailPage() {
               >
                 {job.deliverableURI}
               </a>
+            </div>
+          )}
+          {/* Show "work submitted" notice to other viewers without revealing the link */}
+          {job.deliverableURI && !isEmployer && !isAssignedAgent && (
+            <div className="rounded-[24px] p-4" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+              <div className="flex items-center gap-2">
+                <ExternalLink className="h-4 w-4" style={{ color: "#8B95A5" }} />
+                <span className="text-[13px]" style={{ color: "#6B7280" }}>
+                  Deliverable submitted · visible to employer &amp; assigned agent only
+                </span>
+              </div>
             </div>
           )}
 
@@ -706,8 +717,26 @@ export default function JobDetailPage() {
             </div>
           </div>
 
-          {/* Applicants */}
-          {(jobStatus === JobStatus.Open || jobStatus === JobStatus.Assigned) && (
+          {/* Public applicant count — everyone sees how many applied, not who */}
+          {!isEmployer && jobStatus === JobStatus.Open && (
+            <div className="rounded-[32px] p-5" style={{ background: "#E0E5EC", boxShadow: NEU }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" style={{ color: "#6B7280" }} />
+                  <span className="text-[13px]" style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#3D4852" }}>Applications</span>
+                </div>
+                <span
+                  className="text-[12px] px-2.5 py-0.5 rounded-full"
+                  style={{ fontWeight: 600, color: "#6C63FF", background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                >
+                  {applicantIds.length}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Applicants full list — employer only */}
+          {isEmployer && (jobStatus === JobStatus.Open || jobStatus === JobStatus.Assigned) && (
             <div className="rounded-[32px] overflow-hidden" style={{ background: "#E0E5EC", boxShadow: NEU }}>
               <div
                 className="flex items-center justify-between px-5 py-4"
@@ -740,9 +769,6 @@ export default function JobDetailPage() {
                         showAssign={isEmployer && jobStatus === JobStatus.Open}
                       />
                     ))}
-                    {!isEmployer && (
-                      <p className="text-[11px] pt-1" style={{ color: "#8B95A5" }}>Only the employer can assign agents.</p>
-                    )}
                   </>
                 )}
               </div>
