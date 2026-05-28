@@ -14,6 +14,11 @@ const SUGGESTED_SKILLS = [
   "Data Analysis", "Smart Contracts", "Rust", "Go", "GraphQL", "Automation",
 ];
 
+const NEU           = "9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5)";
+const NEU_SM        = "5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255,0.5)";
+const NEU_INSET     = "inset 6px 6px 10px rgb(163,177,198,0.6), inset -6px -6px 10px rgba(255,255,255,0.5)";
+const NEU_INSET_SM  = "inset 3px 3px 6px rgb(163,177,198,0.6), inset -3px -3px 6px rgba(255,255,255,0.5)";
+
 export default function PostJobPage() {
   const { address, isConnected } = useAccount();
 
@@ -64,21 +69,18 @@ export default function PostJobPage() {
   const { isLoading: createIsMining, isSuccess: createSuccess } =
     useWaitForTransactionReceipt({ hash: createTxHash });
 
-  // ── Watch approve result ─────────────────────────────────────────────────
   useEffect(() => {
     if (!approveSuccess) return;
     toast.success("USDC approved — now post the job!");
     refetchAllowance();
   }, [approveSuccess]); // eslint-disable-line
 
-  // ── Watch create result ──────────────────────────────────────────────────
   useEffect(() => {
     if (!createSuccess) return;
     toast.success("Job posted · USDC in escrow ✓");
     setDone(true);
   }, [createSuccess]); // eslint-disable-line
 
-  // ── Watch errors ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!approveIsError || !approveErr) return;
     const msg = approveErr.message ?? "";
@@ -131,14 +133,20 @@ export default function PostJobPage() {
   // ── Done state ───────────────────────────────────────────────────────────
   if (done) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <CheckCircle className="h-8 w-8 text-emerald-500" />
+      <div className="max-w-lg mx-auto px-4 py-16 text-center" style={{ background: "#E0E5EC" }}>
+        <div
+          className="w-16 h-16 rounded-[20px] flex items-center justify-center mx-auto mb-6"
+          style={{ background: "#E0E5EC", boxShadow: NEU }}
+        >
+          <CheckCircle className="h-8 w-8" style={{ color: "#38B2AC" }} />
         </div>
-        <h2 className="text-[24px] font-800 text-gray-900 mb-2" style={{ fontWeight: 800 }}>
+        <h2
+          className="text-[26px] mb-3"
+          style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#3D4852" }}
+        >
           Job Posted!
         </h2>
-        <p className="text-[14px] text-gray-500 mb-6">
+        <p className="text-[14px] mb-8" style={{ color: "#6B7280" }}>
           Your job is now on-chain and USDC is locked in escrow.<br />
           Agents can now apply for this job.
         </p>
@@ -153,69 +161,75 @@ export default function PostJobPage() {
   const platformFee = budget > 0n ? (budget * 250n) / 10000n : 0n;
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-2xl mx-auto px-4 py-10" style={{ background: "#E0E5EC" }}>
 
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-800 text-gray-900 tracking-tight" style={{ fontWeight: 800 }}>
+      <div className="mb-10">
+        <h1
+          className="text-3xl tracking-tight"
+          style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#3D4852" }}
+        >
           Post a Job
         </h1>
-        <p className="text-[14px] text-gray-500 mt-1">
+        <p className="text-[14px] mt-1" style={{ color: "#6B7280" }}>
           USDC is locked in escrow until you approve the deliverable
         </p>
       </div>
 
       {/* Not connected */}
       {!isConnected && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-6 text-[13px] text-red-700">
-          <span className="font-600" style={{ fontWeight: 600 }}>Connect your wallet</span> to post a job
+        <div
+          className="flex items-center gap-2 px-4 py-3 mb-6 text-[13px] rounded-2xl"
+          style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#EF4444" }}
+        >
+          <span style={{ fontWeight: 600 }}>Connect your wallet</span>&nbsp;to post a job
         </div>
       )}
 
-      {/* Transaction status bars */}
+      {/* Transaction status banners */}
       {approveIsPending && (
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-amber-700">
+        <div className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#F59E0B" }}>
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           Waiting for wallet to approve USDC...
         </div>
       )}
       {approveIsMining && approveTxHash && (
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-blue-700">
+        <div className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#6C63FF" }}>
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           Confirming USDC approval...{" "}
-          <a href={`https://testnet.arcscan.app/tx/${approveTxHash}`} target="_blank" rel="noopener noreferrer" className="underline">
+          <a href={`https://testnet.arcscan.app/tx/${approveTxHash}`} target="_blank" rel="noopener noreferrer" style={{ color: "#6C63FF", textDecoration: "underline" }}>
             {shortAddr(approveTxHash, 8)} ↗
           </a>
         </div>
       )}
       {approveSuccess && !createTxHash && (
-        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-emerald-700">
+        <div className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#38B2AC" }}>
           <CheckCircle className="h-4 w-4 shrink-0" />
           USDC approved ✓ — now click &ldquo;Post Job&rdquo; below
         </div>
       )}
       {createIsPending && (
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-amber-700">
+        <div className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#F59E0B" }}>
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           Waiting for wallet to create job...
         </div>
       )}
       {createIsMining && createTxHash && (
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-blue-700">
+        <div className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#6C63FF" }}>
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           Posting job on-chain...{" "}
-          <a href={`https://testnet.arcscan.app/tx/${createTxHash}`} target="_blank" rel="noopener noreferrer" className="underline">
+          <a href={`https://testnet.arcscan.app/tx/${createTxHash}`} target="_blank" rel="noopener noreferrer" style={{ color: "#6C63FF", textDecoration: "underline" }}>
             {shortAddr(createTxHash, 8)} ↗
           </a>
         </div>
       )}
 
-      <div className="space-y-5">
+      <div className="space-y-6">
 
         {/* Title */}
         <div>
-          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
-            Job Title <span className="text-red-500">*</span>
+          <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
+            Job Title <span style={{ color: "#EF4444" }}>*</span>
           </label>
           <input
             type="text"
@@ -223,29 +237,35 @@ export default function PostJobPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={100}
-            className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+            className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+            style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+            onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+            onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
           />
         </div>
 
         {/* Description */}
         <div>
-          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
-            Description <span className="text-red-500">*</span>
+          <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
+            Description <span style={{ color: "#EF4444" }}>*</span>
           </label>
           <textarea
             placeholder="Describe what needs to be done, deliverables, acceptance criteria..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={5}
-            className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all resize-none"
+            className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300 resize-none"
+            style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+            onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+            onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
           />
         </div>
 
         {/* Skills */}
         <div>
-          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
-            Required Skills <span className="text-red-500">*</span>
-            <span className="text-gray-400 font-400 ml-2" style={{ fontWeight: 400 }}>({skills.length}/20)</span>
+          <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
+            Required Skills <span style={{ color: "#EF4444" }}>*</span>
+            <span className="ml-2" style={{ color: "#8B95A5", fontWeight: 400 }}>({skills.length}/20)</span>
           </label>
 
           <div className="flex gap-2 mb-3">
@@ -255,11 +275,17 @@ export default function PostJobPage() {
               value={skillInput}
               onChange={(e) => setSkillInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSkill(skillInput); } }}
-              className="flex-1 px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+              className="flex-1 px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+              style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+              onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+              onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
             />
             <button
               onClick={() => addSkill(skillInput)}
-              className="p-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+              className="p-3 rounded-2xl text-white border-0 cursor-pointer transition-all duration-300"
+              style={{ background: "#6C63FF", boxShadow: NEU_SM }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = ""}
             >
               <Plus className="h-5 w-5" />
             </button>
@@ -268,9 +294,19 @@ export default function PostJobPage() {
           {skills.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
               {skills.map((s) => (
-                <span key={s} className="flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[12px] font-500" style={{ fontWeight: 500 }}>
+                <span
+                  key={s}
+                  className="flex items-center gap-1 px-3 py-1 rounded-full text-[12px]"
+                  style={{ fontWeight: 500, color: "#6C63FF", background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                >
                   {s}
-                  <button onClick={() => setSkills(skills.filter((x) => x !== s))} className="ml-1 hover:text-red-500 transition-colors">
+                  <button
+                    onClick={() => setSkills(skills.filter((x) => x !== s))}
+                    className="ml-1 cursor-pointer border-0 bg-transparent p-0 transition-colors"
+                    style={{ color: "#8B95A5" }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#EF4444"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+                  >
                     <Trash2 className="h-3 w-3" />
                   </button>
                 </span>
@@ -279,13 +315,22 @@ export default function PostJobPage() {
           )}
 
           <div>
-            <p className="text-[12px] text-gray-400 mb-2">Quick add:</p>
+            <p className="text-[12px] mb-2" style={{ color: "#8B95A5" }}>Quick add:</p>
             <div className="flex flex-wrap gap-1.5">
               {SUGGESTED_SKILLS.filter((s) => !skills.includes(s)).map((s) => (
                 <button
                   key={s}
                   onClick={() => addSkill(s)}
-                  className="text-[12px] text-gray-600 bg-gray-100 hover:bg-blue-100 hover:text-blue-700 px-3 py-1 rounded-full transition-colors"
+                  className="text-[12px] px-3 py-1 rounded-full cursor-pointer border-0 transition-all duration-200"
+                  style={{ color: "#6B7280", background: "#E0E5EC", boxShadow: NEU_SM }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLElement).style.color = "#6C63FF";
+                    (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET_SM;
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.color = "#6B7280";
+                    (e.currentTarget as HTMLElement).style.boxShadow = NEU_SM;
+                  }}
                 >
                   + {s}
                 </button>
@@ -297,11 +342,14 @@ export default function PostJobPage() {
         {/* Budget + Deadline */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
-              Budget (USDC) <span className="text-red-500">*</span>
+            <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
+              Budget (USDC) <span style={{ color: "#EF4444" }}>*</span>
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-600" style={{ fontWeight: 600 }}>$</span>
+              <span
+                className="absolute left-4 top-1/2 -translate-y-1/2"
+                style={{ fontWeight: 600, color: "#8B95A5" }}
+              >$</span>
               <input
                 type="number"
                 min="1"
@@ -309,13 +357,16 @@ export default function PostJobPage() {
                 placeholder="50"
                 value={budgetStr}
                 onChange={(e) => setBudgetStr(e.target.value)}
-                className="w-full pl-7 pr-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                className="w-full pl-8 pr-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+                style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+                onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+                onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
               />
             </div>
             {budget > 0n && (
-              <div className="mt-2 text-[12px] text-gray-500 space-y-0.5">
-                <div>Platform fee: {formatUsdc(platformFee)} USDC (2.5%)</div>
-                <div className="text-emerald-600 font-500" style={{ fontWeight: 500 }}>
+              <div className="mt-2 text-[12px] space-y-0.5">
+                <div style={{ color: "#6B7280" }}>Platform fee: {formatUsdc(platformFee)} USDC (2.5%)</div>
+                <div style={{ color: "#38B2AC", fontWeight: 500 }}>
                   Agent earns: {formatUsdc(budget - platformFee)} USDC
                 </div>
               </div>
@@ -323,13 +374,14 @@ export default function PostJobPage() {
           </div>
 
           <div>
-            <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
+            <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
               Deadline
             </label>
             <select
               value={deadlineDays}
               onChange={(e) => setDeadlineDays(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-700 outline-none focus:border-blue-500 focus:bg-white cursor-pointer transition-all"
+              className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none cursor-pointer transition-all duration-300 border-0"
+              style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
             >
               <option value="3">3 days</option>
               <option value="7">1 week</option>
@@ -343,25 +395,31 @@ export default function PostJobPage() {
 
         {/* Job URI */}
         <div>
-          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
-            Job URI <span className="text-gray-400 font-400" style={{ fontWeight: 400 }}>(optional)</span>
+          <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
+            Job URI <span style={{ color: "#8B95A5", fontWeight: 400 }}>(optional)</span>
           </label>
           <input
             type="url"
             placeholder="https:// or ipfs:// — extended job brief"
             value={jobURI}
             onChange={(e) => setJobURI(e.target.value)}
-            className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+            className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+            style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+            onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+            onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
           />
         </div>
 
         {/* Info box */}
-        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Shield className="h-4 w-4 text-blue-500" />
-            <span className="text-[13px] font-600 text-blue-700" style={{ fontWeight: 600 }}>How escrow works</span>
+        <div
+          className="p-5 rounded-2xl"
+          style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Shield className="h-4 w-4" style={{ color: "#6C63FF" }} />
+            <span className="text-[13px]" style={{ fontWeight: 600, color: "#3D4852" }}>How escrow works</span>
           </div>
-          <ul className="space-y-1 text-[13px] text-blue-700">
+          <ul className="space-y-1.5 text-[13px]" style={{ color: "#6B7280" }}>
             <li>· Step 1 — Approve USDC spend (wallet signature #1)</li>
             <li>· Step 2 — Create job + lock USDC in contract (wallet signature #2)</li>
             <li>· Agent is paid when you approve their deliverable</li>
@@ -374,7 +432,7 @@ export default function PostJobPage() {
           <button
             onClick={handleApprove}
             disabled={anyLoading || !budget || !isConnected || !title.trim() || skills.length === 0}
-            className="btn-primary w-full py-3 justify-center text-[15px]"
+            className="btn-primary w-full py-3.5 justify-center text-[15px]"
           >
             {approveLoading ? (
               <>
@@ -389,7 +447,7 @@ export default function PostJobPage() {
           <button
             onClick={handleCreate}
             disabled={anyLoading || !isConnected || !title.trim() || !description.trim() || skills.length === 0 || !budget}
-            className="btn-primary w-full py-3 justify-center text-[15px]"
+            className="btn-primary w-full py-3.5 justify-center text-[15px]"
           >
             {createLoading ? (
               <>
@@ -406,7 +464,7 @@ export default function PostJobPage() {
         )}
 
         {budget > 0n && (
-          <p className="text-center text-[12px] text-gray-400">
+          <p className="text-center text-[12px]" style={{ color: "#8B95A5" }}>
             {needsApproval ? "Requires 2 wallet signatures" : "USDC already approved · 1 signature needed"}
           </p>
         )}

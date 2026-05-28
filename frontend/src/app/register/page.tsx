@@ -13,6 +13,11 @@ const SUGGESTED_SKILLS = [
   "Foundry", "Hardhat", "GraphQL", "Rust", "Go", "Smart Contracts",
 ];
 
+const NEU           = "9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5)";
+const NEU_SM        = "5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255,0.5)";
+const NEU_INSET     = "inset 6px 6px 10px rgb(163,177,198,0.6), inset -6px -6px 10px rgba(255,255,255,0.5)";
+const NEU_INSET_SM  = "inset 3px 3px 6px rgb(163,177,198,0.6), inset -3px -3px 6px rgba(255,255,255,0.5)";
+
 export default function RegisterPage() {
   const { address, isConnected } = useAccount();
 
@@ -62,14 +67,20 @@ export default function RegisterPage() {
   // ── Done state ───────────────────────────────────────────────────────────
   if (done) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <CheckCircle className="h-8 w-8 text-emerald-500" />
+      <div className="max-w-lg mx-auto px-4 py-16 text-center" style={{ background: "#E0E5EC" }}>
+        <div
+          className="w-16 h-16 rounded-[20px] flex items-center justify-center mx-auto mb-6"
+          style={{ background: "#E0E5EC", boxShadow: NEU }}
+        >
+          <CheckCircle className="h-8 w-8" style={{ color: "#38B2AC" }} />
         </div>
-        <h2 className="text-[24px] font-800 text-gray-900 mb-2" style={{ fontWeight: 800 }}>
+        <h2
+          className="text-[26px] mb-3"
+          style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#3D4852" }}
+        >
           Agent Registered!
         </h2>
-        <p className="text-[14px] text-gray-500 mb-6">
+        <p className="text-[14px] mb-8" style={{ color: "#6B7280" }}>
           Your ERC-8004 identity NFT has been minted on Arc.<br />
           Skills and reputation are now stored on-chain.
         </p>
@@ -84,17 +95,21 @@ export default function RegisterPage() {
   // ── Already registered ───────────────────────────────────────────────────
   if (alreadyRegistered) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <CheckCircle className="h-8 w-8 text-blue-500" />
+      <div className="max-w-lg mx-auto px-4 py-16 text-center" style={{ background: "#E0E5EC" }}>
+        <div
+          className="w-16 h-16 rounded-[20px] flex items-center justify-center mx-auto mb-6"
+          style={{ background: "#E0E5EC", boxShadow: NEU }}
+        >
+          <CheckCircle className="h-8 w-8" style={{ color: "#6C63FF" }} />
         </div>
-        <h2 className="text-[24px] font-800 text-gray-900 mb-2" style={{ fontWeight: 800 }}>
+        <h2
+          className="text-[26px] mb-2"
+          style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#3D4852" }}
+        >
           Already Registered
         </h2>
-        <p className="text-[14px] text-gray-500 mb-2">
-          <span className="font-600 text-gray-900" style={{ fontWeight: 600 }}>{ea?.name}</span>
-        </p>
-        <p className="text-[13px] text-gray-400 mb-6">
+        <p className="text-[14px] mb-1" style={{ fontWeight: 600, color: "#3D4852" }}>{ea?.name}</p>
+        <p className="text-[13px] mb-8" style={{ color: "#8B95A5" }}>
           {ea?.skills?.length ?? 0} skills · Rep score {ea?.reputationScore?.toString() ?? "50"}/100
         </p>
         <div className="flex flex-col gap-3">
@@ -107,45 +122,57 @@ export default function RegisterPage() {
 
   // ── Form ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-2xl mx-auto px-4 py-10" style={{ background: "#E0E5EC" }}>
 
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-800 text-gray-900 tracking-tight" style={{ fontWeight: 800 }}>
+      <div className="mb-10">
+        <h1
+          className="text-3xl tracking-tight"
+          style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#3D4852" }}
+        >
           Register Agent
         </h1>
-        <p className="text-[14px] text-gray-500 mt-1">
+        <p className="text-[14px] mt-1" style={{ color: "#6B7280" }}>
           Mint your ERC-8004 identity NFT on Arc blockchain
         </p>
       </div>
 
       {/* Not connected warning */}
       {!isConnected && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-6 text-[13px] text-red-700">
-          <span className="font-600" style={{ fontWeight: 600 }}>Connect your wallet</span> to register an agent
+        <div
+          className="flex items-center gap-2 px-4 py-3 mb-6 text-[13px] rounded-2xl"
+          style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#EF4444" }}
+        >
+          <span style={{ fontWeight: 600 }}>Connect your wallet</span>&nbsp;to register an agent
         </div>
       )}
 
-      {/* Tx status */}
+      {/* Tx status banners */}
       {isPending && (
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-amber-700">
+        <div
+          className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl"
+          style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#F59E0B" }}
+        >
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           Waiting for wallet confirmation...
         </div>
       )}
       {isMining && (
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-blue-700">
+        <div
+          className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl"
+          style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#6C63FF" }}
+        >
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           Minting NFT on Arc...
         </div>
       )}
 
-      <div className="space-y-5">
+      <div className="space-y-6">
 
         {/* Agent Name */}
         <div>
-          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
-            Agent Name <span className="text-red-500">*</span>
+          <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
+            Agent Name <span style={{ color: "#EF4444" }}>*</span>
           </label>
           <input
             type="text"
@@ -153,19 +180,28 @@ export default function RegisterPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={80}
-            className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+            className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+            style={{
+              background: "#E0E5EC",
+              color: "#3D4852",
+              boxShadow: NEU_INSET,
+            }}
+            onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+            onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
           />
-          <p className="text-[12px] text-gray-400 mt-1">This becomes part of your on-chain agentId — choose carefully.</p>
+          <p className="text-[12px] mt-1.5" style={{ color: "#8B95A5" }}>
+            This becomes part of your on-chain agentId — choose carefully.
+          </p>
         </div>
 
         {/* Skills */}
         <div>
-          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
-            Skills <span className="text-red-500">*</span>
-            <span className="text-gray-400 font-400 ml-2" style={{ fontWeight: 400 }}>({skills.length}/20)</span>
+          <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
+            Skills <span style={{ color: "#EF4444" }}>*</span>
+            <span className="ml-2" style={{ color: "#8B95A5", fontWeight: 400 }}>({skills.length}/20)</span>
           </label>
 
-          {/* Input */}
+          {/* Input row */}
           <div className="flex gap-2 mb-3">
             <input
               type="text"
@@ -173,11 +209,17 @@ export default function RegisterPage() {
               value={skillInput}
               onChange={(e) => setSkillInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSkill(skillInput); } }}
-              className="flex-1 px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+              className="flex-1 px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+              style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+              onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+              onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
             />
             <button
               onClick={() => addSkill(skillInput)}
-              className="p-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
+              className="p-3 rounded-2xl text-white border-0 cursor-pointer transition-all duration-300"
+              style={{ background: "#6C63FF", boxShadow: NEU_SM }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = ""}
             >
               <Plus className="h-5 w-5" />
             </button>
@@ -187,9 +229,19 @@ export default function RegisterPage() {
           {skills.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
               {skills.map((s) => (
-                <span key={s} className="flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[12px] font-500" style={{ fontWeight: 500 }}>
+                <span
+                  key={s}
+                  className="flex items-center gap-1 px-3 py-1 rounded-full text-[12px]"
+                  style={{ fontWeight: 500, color: "#6C63FF", background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                >
                   {s}
-                  <button onClick={() => setSkills(skills.filter((x) => x !== s))} className="ml-1 hover:text-red-500 transition-colors">
+                  <button
+                    onClick={() => setSkills(skills.filter((x) => x !== s))}
+                    className="ml-1 transition-colors cursor-pointer border-0 bg-transparent p-0"
+                    style={{ color: "#8B95A5" }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#EF4444"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+                  >
                     <Trash2 className="h-3 w-3" />
                   </button>
                 </span>
@@ -199,13 +251,22 @@ export default function RegisterPage() {
 
           {/* Suggested */}
           <div>
-            <p className="text-[12px] text-gray-400 mb-2">Quick add:</p>
+            <p className="text-[12px] mb-2" style={{ color: "#8B95A5" }}>Quick add:</p>
             <div className="flex flex-wrap gap-1.5">
               {SUGGESTED_SKILLS.filter((s) => !skills.includes(s)).map((s) => (
                 <button
                   key={s}
                   onClick={() => addSkill(s)}
-                  className="text-[12px] text-gray-600 bg-gray-100 hover:bg-blue-100 hover:text-blue-700 px-3 py-1 rounded-full transition-colors"
+                  className="text-[12px] px-3 py-1 rounded-full cursor-pointer border-0 transition-all duration-200"
+                  style={{ color: "#6B7280", background: "#E0E5EC", boxShadow: NEU_SM }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLElement).style.color = "#6C63FF";
+                    (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET_SM;
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.color = "#6B7280";
+                    (e.currentTarget as HTMLElement).style.boxShadow = NEU_SM;
+                  }}
                 >
                   + {s}
                 </button>
@@ -216,26 +277,34 @@ export default function RegisterPage() {
 
         {/* Agent URI */}
         <div>
-          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
-            Agent URI <span className="text-gray-400 font-400" style={{ fontWeight: 400 }}>(optional)</span>
+          <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
+            Agent URI <span style={{ color: "#8B95A5", fontWeight: 400 }}>(optional)</span>
           </label>
           <input
             type="url"
             placeholder="https:// or ipfs:// — ERC-8004 capability manifest"
             value={agentURI}
             onChange={(e) => setAgentURI(e.target.value)}
-            className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+            className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+            style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+            onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+            onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
           />
-          <p className="text-[12px] text-gray-400 mt-1">Optional — you can update this after registration.</p>
+          <p className="text-[12px] mt-1.5" style={{ color: "#8B95A5" }}>
+            Optional — you can update this after registration.
+          </p>
         </div>
 
         {/* Info box */}
-        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Zap className="h-4 w-4 text-blue-500" />
-            <span className="text-[13px] font-600 text-blue-700" style={{ fontWeight: 600 }}>What gets minted</span>
+        <div
+          className="p-5 rounded-2xl"
+          style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Zap className="h-4 w-4" style={{ color: "#6C63FF" }} />
+            <span className="text-[13px]" style={{ fontWeight: 600, color: "#3D4852" }}>What gets minted</span>
           </div>
-          <ul className="space-y-1 text-[13px] text-blue-700">
+          <ul className="space-y-1.5 text-[13px]" style={{ color: "#6B7280" }}>
             <li>· ERC-721 identity NFT (ERC-8004 compliant)</li>
             <li>· On-chain skills array</li>
             <li>· Starting reputation score = 50/100</li>
@@ -248,7 +317,7 @@ export default function RegisterPage() {
         <button
           onClick={handleRegister}
           disabled={loading || !isConnected || !name.trim() || skills.length === 0}
-          className="btn-primary w-full py-3 justify-center text-[15px]"
+          className="btn-primary w-full py-3.5 justify-center text-[15px]"
         >
           {loading ? (
             <>

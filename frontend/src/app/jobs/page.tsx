@@ -114,23 +114,30 @@ export default function JobsPage() {
 
   const totalBudget = filtered.reduce((acc, j) => acc + (j.budget ?? 0n), 0n);
 
+  const NEU      = "9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5)";
+  const NEU_INSET = "inset 6px 6px 10px rgb(163,177,198,0.6), inset -6px -6px 10px rgba(255,255,255,0.5)";
+  const NEU_SM    = "5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255,0.5)";
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-10" style={{ background: "#E0E5EC" }}>
 
       {/* ── Page header ───────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
         <div>
-          <h1 className="text-3xl font-800 text-gray-900 tracking-tight" style={{ fontWeight: 800 }}>
+          <h1
+            className="text-3xl tracking-tight"
+            style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#3D4852" }}
+          >
             Job Board
           </h1>
-          <p className="text-[14px] text-gray-500 mt-1">
+          <p className="text-[14px] mt-1" style={{ color: "#6B7280" }}>
             {isLoading ? (
               <span className="animate-pulse">Loading jobs...</span>
             ) : (
               <>
-                <span className="text-gray-900 font-600" style={{ fontWeight: 600 }}>{filtered.length}</span> jobs found
+                <span style={{ color: "#3D4852", fontWeight: 600 }}>{filtered.length}</span> jobs found
                 {totalBudget > 0n && (
-                  <> · <span className="text-blue-600 font-600" style={{ fontWeight: 600 }}>{formatUsdc(totalBudget)} USDC</span> total</>
+                  <> · <span style={{ color: "#6C63FF", fontWeight: 600 }}>{formatUsdc(totalBudget)} USDC</span> total</>
                 )}
               </>
             )}
@@ -142,32 +149,37 @@ export default function JobsPage() {
       </div>
 
       {/* ── Search + Filter bar ───────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 mb-8">
         {/* Search */}
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "#8B95A5" }} />
           <input
             type="text"
             placeholder="Search jobs by title, skill, or description..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+            className="w-full pl-11 pr-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+            style={{
+              background: "#E0E5EC",
+              color: "#3D4852",
+              boxShadow: NEU_INSET,
+            }}
           />
         </div>
 
         {/* Status filter pills */}
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
           {STATUS_FILTERS.map(({ value, label }) => (
             <button
               key={value}
               onClick={() => setFilter(value)}
-              className={cn(
-                "px-4 py-2 text-[13px] font-500 rounded-lg border transition-all",
-                filter === value
-                  ? "bg-blue-500 border-blue-500 text-white font-600"
-                  : "border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900 bg-white"
-              )}
-              style={{ fontWeight: filter === value ? 600 : 500 }}
+              className="px-4 py-2.5 text-[13px] rounded-2xl border-0 cursor-pointer transition-all duration-300"
+              style={{
+                fontWeight: filter === value ? 700 : 500,
+                color:      filter === value ? "#6C63FF" : "#6B7280",
+                background: "#E0E5EC",
+                boxShadow:  filter === value ? NEU_INSET : NEU_SM,
+              }}
             >
               {label}
             </button>
@@ -177,26 +189,26 @@ export default function JobsPage() {
 
       {/* ── Job grid ──────────────────────────────────────────────────────── */}
       {isLoading ? (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
-          <div className="text-[14px] text-gray-500 animate-pulse mb-2">
+        <div className="rounded-[32px] py-16 text-center" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+          <div className="text-[14px] animate-pulse mb-2" style={{ color: "#6B7280" }}>
             Loading on-chain job data...
           </div>
-          <div className="text-[12px] text-gray-400">Querying Arc Testnet (chain ID 5042002)</div>
+          <div className="text-[12px]" style={{ color: "#8B95A5" }}>Querying Arc Testnet (chain ID 5042002)</div>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
-          <div className="text-[16px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
+        <div className="rounded-[32px] py-16 text-center" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+          <div className="text-[16px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
             {jobs.length === 0 ? "No jobs posted yet" : "No jobs match your search"}
           </div>
-          <div className="text-[14px] text-gray-500">
+          <div className="text-[14px]" style={{ color: "#6B7280" }}>
             {jobs.length === 0
-              ? <Link href="/jobs/post" className="text-blue-500 hover:underline">Post the first job →</Link>
+              ? <Link href="/jobs/post" style={{ color: "#6C63FF" }}>Post the first job →</Link>
               : "Try a different search or clear your filters"
             }
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filtered.map((job) => (
             <JobCard key={job.jobId} job={job} />
           ))}
@@ -204,7 +216,7 @@ export default function JobsPage() {
       )}
 
       {/* Chain badge */}
-      <p className="text-center text-[12px] text-gray-400 mt-8">
+      <p className="text-center text-[12px] mt-10" style={{ color: "#8B95A5" }}>
         Live data from Arc Testnet · Chain ID 5042002 · {jobs.length} jobs indexed
       </p>
     </div>

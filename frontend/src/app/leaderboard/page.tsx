@@ -40,6 +40,12 @@ export default function LeaderboardPage() {
   const [agentIds,   setAgentIds]   = useState<`0x${string}`[]>([]);
   const [logsLoaded, setLogsLoaded] = useState(false);
 
+  const NEU           = "9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5)";
+  const NEU_HOVER     = "12px 12px 20px rgb(163,177,198,0.7), -12px -12px 20px rgba(255,255,255,0.6)";
+  const NEU_SM        = "5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255,0.5)";
+  const NEU_INSET     = "inset 6px 6px 10px rgb(163,177,198,0.6), inset -6px -6px 10px rgba(255,255,255,0.5)";
+  const NEU_INSET_SM  = "inset 3px 3px 6px rgb(163,177,198,0.6), inset -3px -3px 6px rgba(255,255,255,0.5)";
+
   useEffect(() => {
     if (!publicClient || !CONTRACT_ADDRESSES.agentRegistry) return;
     fetchAllAgentIds(publicClient, CONTRACT_ADDRESSES.agentRegistry)
@@ -66,42 +72,50 @@ export default function LeaderboardPage() {
     .sort((a, b) => Number((b.reputationScore ?? 0n) - (a.reputationScore ?? 0n)))
     .map((a, i) => ({ ...a, rank: i + 1 }));
 
-  const PODIUM_STYLE: Record<number, { bg: string; icon: React.ReactNode; border: string }> = {
-    1: { bg: "bg-amber-50",   border: "border-amber-300", icon: <Trophy className="h-6 w-6 text-amber-500" /> },
-    2: { bg: "bg-gray-50",    border: "border-gray-300",  icon: <Medal  className="h-6 w-6 text-gray-500"  /> },
-    3: { bg: "bg-orange-50",  border: "border-orange-300",icon: <Award  className="h-6 w-6 text-orange-500"/> },
+  const PODIUM_ICON: Record<number, React.ReactNode> = {
+    1: <Trophy className="h-7 w-7" style={{ color: "#F59E0B" }} />,
+    2: <Medal  className="h-7 w-7" style={{ color: "#6B7280" }} />,
+    3: <Award  className="h-7 w-7" style={{ color: "#CD7C5E" }} />,
   };
 
   const RANK_COLOR: Record<number, string> = {
-    1: "text-amber-500",
-    2: "text-gray-500",
-    3: "text-orange-500",
+    1: "#F59E0B",
+    2: "#6B7280",
+    3: "#CD7C5E",
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto px-4 py-10" style={{ background: "#E0E5EC" }}>
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-800 text-gray-900 tracking-tight" style={{ fontWeight: 800 }}>
+      <div className="mb-10">
+        <h1
+          className="text-3xl tracking-tight"
+          style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#3D4852" }}
+        >
           Agent Leaderboard
         </h1>
-        <p className="text-[14px] text-gray-500 mt-1">
-          Ranked by on-chain reputation score
+        <p className="text-[14px] mt-1" style={{ color: "#6B7280" }}>
+          {isLoading
+            ? <span className="animate-pulse">Loading rankings...</span>
+            : <><span style={{ color: "#3D4852", fontWeight: 600 }}>{leaders.length}</span> agents ranked by reputation</>
+          }
         </p>
       </div>
 
       {isLoading ? (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
-          <div className="text-[14px] text-gray-500 animate-pulse mb-2">Loading leaderboard...</div>
-          <div className="text-[12px] text-gray-400">Reading reputation scores from chain</div>
+        <div className="rounded-[32px] py-16 text-center" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+          <div className="text-[14px] animate-pulse mb-2" style={{ color: "#6B7280" }}>
+            Loading leaderboard...
+          </div>
+          <div className="text-[12px]" style={{ color: "#8B95A5" }}>Reading reputation scores from chain</div>
         </div>
       ) : leaders.length === 0 ? (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
-          <div className="text-[16px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
+        <div className="rounded-[32px] py-16 text-center" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+          <div className="text-[16px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
             No agents registered yet
           </div>
-          <Link href="/register" className="text-blue-500 hover:underline text-[14px]">
+          <Link href="/register" style={{ color: "#6C63FF" }} className="text-[14px]">
             Register the first agent →
           </Link>
         </div>
@@ -109,25 +123,45 @@ export default function LeaderboardPage() {
         <>
           {/* ── Podium top 3 ──────────────────────────────────────────────── */}
           {leaders.length >= 1 && (
-            <div className={`grid gap-3 mb-6 ${leaders.length >= 3 ? "grid-cols-3" : leaders.length === 2 ? "grid-cols-2" : "grid-cols-1 max-w-xs mx-auto"}`}>
+            <div className={`grid gap-4 mb-8 ${leaders.length >= 3 ? "grid-cols-3" : leaders.length === 2 ? "grid-cols-2" : "grid-cols-1 max-w-xs mx-auto"}`}>
               {leaders.slice(0, Math.min(3, leaders.length)).map((agent) => {
-                const pod   = PODIUM_STYLE[agent.rank];
                 const score = Number(agent.reputationScore ?? 0n);
                 return (
-                  <Link key={agent.agentId} href={`/agents/${agent.agentId}`}
-                    className={`block ${pod.bg} border ${pod.border} rounded-lg p-4 text-center hover:no-underline hover:scale-[1.03] transition-transform`}
+                  <Link
+                    key={agent.agentId}
+                    href={`/agents/${agent.agentId}`}
+                    className="block text-center p-5 rounded-[24px] transition-all duration-300 hover:no-underline"
+                    style={{ background: "#E0E5EC", boxShadow: NEU }}
+                    onMouseEnter={e => {
+                      (e.currentTarget as HTMLElement).style.transform = "translateY(-3px)";
+                      (e.currentTarget as HTMLElement).style.boxShadow = NEU_HOVER;
+                    }}
+                    onMouseLeave={e => {
+                      (e.currentTarget as HTMLElement).style.transform = "";
+                      (e.currentTarget as HTMLElement).style.boxShadow = NEU;
+                    }}
                   >
-                    <div className="flex justify-center mb-2">{pod.icon}</div>
-                    <div className="text-[28px] font-800 text-gray-900" style={{ fontWeight: 800 }}>{score}</div>
-                    <div className="text-[11px] text-gray-500 mb-2">/ 100</div>
-                    {/* Rep bar */}
-                    <div className="h-1 bg-white rounded-full overflow-hidden mb-2">
-                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${score}%` }} />
+                    <div className="flex justify-center mb-3">{PODIUM_ICON[agent.rank]}</div>
+                    <div
+                      className="text-[32px] mb-0.5"
+                      style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#6C63FF" }}
+                    >
+                      {score}
                     </div>
-                    <div className="text-[13px] font-700 text-gray-900 truncate" style={{ fontWeight: 700 }}>
+                    <div className="text-[11px] mb-3" style={{ color: "#8B95A5" }}>/ 100</div>
+
+                    {/* Rep bar */}
+                    <div className="h-1.5 rounded-full overflow-hidden mb-3" style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }}>
+                      <div className="h-full rounded-full" style={{ width: `${score}%`, background: "#6C63FF" }} />
+                    </div>
+
+                    <div
+                      className="text-[13px] truncate"
+                      style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#3D4852" }}
+                    >
                       {agent.name}
                     </div>
-                    <div className="text-[12px] text-gray-500 mt-0.5">
+                    <div className="text-[12px] mt-0.5" style={{ color: "#6B7280" }}>
                       {agent.jobsCompleted?.toString() ?? "0"} jobs done
                     </div>
                   </Link>
@@ -136,21 +170,39 @@ export default function LeaderboardPage() {
             </div>
           )}
 
-          {/* ── Full table ─────────────────────────────────────────────────── */}
-          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
-              <span className="text-[13px] font-600 text-gray-900" style={{ fontWeight: 600 }}>Full Rankings</span>
-              <span className="text-[12px] text-gray-500">{leaders.length} agents</span>
+          {/* ── Full rankings table ────────────────────────────────────────── */}
+          <div className="rounded-[32px] overflow-hidden" style={{ background: "#E0E5EC", boxShadow: NEU }}>
+            {/* Table header */}
+            <div
+              className="flex items-center justify-between px-6 py-4"
+              style={{ borderBottom: "1px solid rgba(163,177,198,0.35)" }}
+            >
+              <span
+                className="text-[13px]"
+                style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#3D4852" }}
+              >
+                Full Rankings
+              </span>
+              <span
+                className="text-[12px] px-3 py-1 rounded-full"
+                style={{ color: "#6B7280", background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+              >
+                {leaders.length} agents
+              </span>
             </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
-                  <tr className="border-b border-gray-100 text-[11px] font-600 text-gray-500 uppercase tracking-wider" style={{ fontWeight: 600 }}>
-                    <th className="text-left px-4 py-3 w-14">Rank</th>
-                    <th className="text-left px-4 py-3">Agent</th>
-                    <th className="text-right px-4 py-3">Score</th>
-                    <th className="text-right px-4 py-3 hidden sm:table-cell">Progress</th>
-                    <th className="text-right px-4 py-3 hidden sm:table-cell">Jobs Done</th>
+                  <tr
+                    className="text-[11px] uppercase tracking-wider"
+                    style={{ borderBottom: "1px solid rgba(163,177,198,0.25)", fontWeight: 700, color: "#8B95A5" }}
+                  >
+                    <th className="text-left px-6 py-3 w-14">Rank</th>
+                    <th className="text-left px-6 py-3">Agent</th>
+                    <th className="text-right px-6 py-3">Score</th>
+                    <th className="text-right px-6 py-3 hidden sm:table-cell">Progress</th>
+                    <th className="text-right px-6 py-3 hidden sm:table-cell">Jobs Done</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -159,38 +211,48 @@ export default function LeaderboardPage() {
                     return (
                       <tr
                         key={agent.agentId}
-                        className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors"
+                        className="transition-all duration-200 hover:bg-white/20"
+                        style={{ borderBottom: "1px solid rgba(163,177,198,0.15)" }}
                       >
-                        <td className="px-4 py-3">
-                          <span className={`font-700 text-[14px] ${RANK_COLOR[agent.rank] ?? "text-gray-400"}`} style={{ fontWeight: 700 }}>
+                        <td className="px-6 py-4">
+                          <span
+                            className="text-[15px]"
+                            style={{ fontWeight: 800, color: RANK_COLOR[agent.rank] ?? "#8B95A5" }}
+                          >
                             #{agent.rank}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
-                            <Link href={`/agents/${agent.agentId}`}
-                              className="font-600 text-gray-900 hover:text-blue-600 hover:underline"
-                              style={{ fontWeight: 600 }}
+                            <Link
+                              href={`/agents/${agent.agentId}`}
+                              className="hover:no-underline transition-colors"
+                              style={{ fontWeight: 600, color: "#3D4852" }}
+                              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+                              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#3D4852"}
                             >
                               {agent.name}
                             </Link>
                             {agent.verified && (
-                              <CheckCircle className="h-4 w-4 text-blue-500 shrink-0" />
+                              <CheckCircle className="h-4 w-4 shrink-0" style={{ color: "#38B2AC" }} />
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="font-700 text-blue-600" style={{ fontWeight: 700 }}>{score}</span>
-                          <span className="text-gray-400 text-[11px]">/100</span>
+                        <td className="px-6 py-4 text-right">
+                          <span style={{ fontWeight: 700, color: "#6C63FF" }}>{score}</span>
+                          <span className="text-[11px]" style={{ color: "#8B95A5" }}>/100</span>
                         </td>
-                        <td className="px-4 py-3 text-right hidden sm:table-cell">
+                        <td className="px-6 py-4 text-right hidden sm:table-cell">
                           <div className="flex items-center justify-end">
-                            <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full bg-blue-500" style={{ width: `${score}%` }} />
+                            <div
+                              className="w-20 h-1.5 rounded-full overflow-hidden"
+                              style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                            >
+                              <div className="h-full rounded-full" style={{ width: `${score}%`, background: "#6C63FF" }} />
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-500 hidden sm:table-cell">
+                        <td className="px-6 py-4 text-right" style={{ color: "#6B7280" }}>
                           {agent.jobsCompleted?.toString() ?? "0"}
                         </td>
                       </tr>
@@ -203,7 +265,7 @@ export default function LeaderboardPage() {
         </>
       )}
 
-      <p className="text-center text-[12px] text-gray-400 mt-6">
+      <p className="text-center text-[12px] mt-10" style={{ color: "#8B95A5" }}>
         Scores update after each job completion · Arc Testnet · Chain ID 5042002
       </p>
     </div>

@@ -2,6 +2,10 @@
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 
+const neuShadow    = "9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5)";
+const neuShadowSm  = "5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255,0.5)";
+const neuInsetSm   = "inset 3px 3px 6px rgb(163,177,198,0.6), inset -3px -3px 6px rgba(255,255,255,0.5)";
+
 export function WalletButton() {
   return (
     <ConnectButton.Custom>
@@ -29,17 +33,34 @@ export function WalletButton() {
             {!connected ? (
               <button
                 onClick={openConnectModal}
-                className="flex items-center gap-2 text-[13px] font-600 py-2 px-4 rounded-md bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-                style={{ fontWeight: 600 }}
+                className="flex items-center gap-2 text-[13px] font-semibold py-2.5 px-5 rounded-2xl text-white transition-all duration-300 cursor-pointer border-0"
+                style={{
+                  background: "#6C63FF",
+                  fontWeight: 600,
+                  boxShadow: neuShadow,
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)";
+                  (e.currentTarget as HTMLElement).style.boxShadow = "12px 12px 20px rgb(163,177,198,0.7), -12px -12px 20px rgba(255,255,255,0.6)";
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.transform = "";
+                  (e.currentTarget as HTMLElement).style.boxShadow = neuShadow;
+                }}
               >
-                <span className="w-2 h-2 bg-white/50 rounded-full" />
+                <span className="w-2 h-2 bg-white/60 rounded-full" />
                 Connect Wallet
               </button>
             ) : chain.unsupported ? (
               <button
                 onClick={openChainModal}
-                className="text-[13px] py-2 px-4 rounded-md bg-red-50 text-red-600 border border-red-200 font-600 hover:bg-red-100 transition-colors"
-                style={{ fontWeight: 600 }}
+                className="text-[13px] py-2.5 px-5 rounded-2xl font-semibold cursor-pointer border-0 transition-all duration-300"
+                style={{
+                  background: "#E0E5EC",
+                  color: "#EF4444",
+                  fontWeight: 600,
+                  boxShadow: neuShadow,
+                }}
               >
                 Wrong Network
               </button>
@@ -48,8 +69,13 @@ export function WalletButton() {
                 {/* Chain badge */}
                 <button
                   onClick={openChainModal}
-                  className="hidden sm:inline-flex items-center gap-1.5 text-[12px] py-1.5 px-3 rounded-md bg-gray-100 text-gray-600 font-500 hover:bg-gray-200 transition-colors"
-                  style={{ fontWeight: 500 }}
+                  className="hidden sm:inline-flex items-center gap-1.5 text-[12px] py-2 px-3 rounded-2xl font-medium cursor-pointer border-0 transition-all duration-300"
+                  style={{
+                    background: "#E0E5EC",
+                    color: "#6B7280",
+                    fontWeight: 500,
+                    boxShadow: neuShadowSm,
+                  }}
                 >
                   {chain.hasIcon && chain.iconUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -61,10 +87,15 @@ export function WalletButton() {
                 {/* Account */}
                 <button
                   onClick={openAccountModal}
-                  className="inline-flex items-center gap-2 text-[13px] py-2 px-3 rounded-md bg-blue-50 text-blue-700 font-600 hover:bg-blue-100 transition-colors"
-                  style={{ fontWeight: 600 }}
+                  className="inline-flex items-center gap-2 text-[13px] py-2 px-3 rounded-2xl font-semibold cursor-pointer border-0 transition-all duration-300"
+                  style={{
+                    background: "#E0E5EC",
+                    color: "#6C63FF",
+                    fontWeight: 600,
+                    boxShadow: neuInsetSm,
+                  }}
                 >
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full shrink-0" />
+                  <span className="w-2 h-2 bg-[#38B2AC] rounded-full shrink-0" />
                   {account.displayName ?? "Account"}
                 </button>
               </div>

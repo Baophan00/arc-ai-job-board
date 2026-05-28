@@ -10,122 +10,91 @@ const config: Config = {
   theme: {
     borderRadius: {
       none:    "0px",
-      sm:      "4px",
-      DEFAULT: "6px",
-      md:      "6px",
-      lg:      "8px",
-      xl:      "12px",
+      sm:      "8px",
+      DEFAULT: "12px",
+      md:      "12px",
+      lg:      "16px",
+      xl:      "20px",
       "2xl":   "16px",
       "3xl":   "24px",
+      "4xl":   "32px",
       full:    "9999px",
     },
     extend: {
       colors: {
-        // ── Primary palette ─────────────────────────────────────────────────
-        primary: {
-          50:  "#EFF6FF",
-          100: "#DBEAFE",
-          200: "#BFDBFE",
-          300: "#93C5FD",
-          400: "#60A5FA",
-          500: "#3B82F6",
-          600: "#2563EB",
-          700: "#1D4ED8",
-          DEFAULT: "#3B82F6",
+        // ── Neumorphic palette ───────────────────────────────────────────────
+        neu: {
+          base:    "#E0E5EC",
+          dark:    "#3D4852",
+          muted:   "#6B7280",
+          accent:  "#6C63FF",
+          "accent-light": "#8B84FF",
+          success: "#38B2AC",
         },
-        // ── Secondary / Emerald ─────────────────────────────────────────────
-        secondary: {
-          50:  "#ECFDF5",
-          100: "#D1FAE5",
-          400: "#34D399",
-          500: "#10B981",
-          600: "#059669",
-          DEFAULT: "#10B981",
+        // ── Backward compat — map old names to neu values ────────────────────
+        primary:   { DEFAULT: "#6C63FF", 500: "#6C63FF", 600: "#5B52EE" },
+        secondary: { DEFAULT: "#38B2AC", 500: "#38B2AC" },
+        accent:    { DEFAULT: "#6C63FF", 500: "#6C63FF" },
+        blue:  { 50: "#EEEEFF", 100: "#DDDDFB", 200: "#CCCBF7", 300: "#ABAAF2",
+                 400: "#8B84FF", 500: "#6C63FF", 600: "#5B52EE", 700: "#4A41DD" },
+        emerald: { 500: "#38B2AC", 600: "#2C9A95" },
+        amber:   { 500: "#F59E0B", 600: "#D97706" },
+        violet:  { 500: "#6C63FF", 600: "#5B52EE" },
+        gray:    {
+          50:  "#EEF2F7", 100: "#E0E5EC", 200: "#CDD5E0", 300: "#B0BBC9",
+          400: "#8B95A5", 500: "#6B7280", 600: "#4B5563", 700: "#374151",
+          800: "#1F2937", 900: "#3D4852",
         },
-        // ── Accent / Amber ──────────────────────────────────────────────────
-        accent: {
-          50:  "#FFFBEB",
-          100: "#FEF3C7",
-          400: "#FBBF24",
-          500: "#F59E0B",
-          600: "#D97706",
-          DEFAULT: "#F59E0B",
-        },
-        // ── Neutral ─────────────────────────────────────────────────────────
-        muted: {
-          DEFAULT: "#F3F4F6",
-          foreground: "#6B7280",
-        },
-        // ── Semantic ────────────────────────────────────────────────────────
-        destructive: "#EF4444",
-        border: "#E5E7EB",
-        // ── Backward compat aliases (terminal styles no longer used) ─────────
-        term: {
-          DEFAULT: "#3B82F6",
-          bright:  "#60A5FA",
-          dim:     "#93C5FD",
-          dark:    "#EFF6FF",
-        },
-        amber: {
-          DEFAULT: "#F59E0B",
-          dim:     "#FEF3C7",
-        },
-        err: "#EF4444",
-        surface: {
-          DEFAULT: "#FFFFFF",
-          2:       "#F9FAFB",
-          3:       "#F3F4F6",
-          4:       "#E5E7EB",
-        },
-        arc: {
-          300: "#93C5FD",
-          400: "#60A5FA",
-          500: "#3B82F6",
-          600: "#2563EB",
-          950: "#1E3A8A",
-        },
-        cyber: {
-          400: "#60A5FA",
-          500: "#3B82F6",
-          600: "#2563EB",
-        },
+        muted: { DEFAULT: "#E0E5EC", foreground: "#6B7280" },
+        surface: { DEFAULT: "#E0E5EC", 2: "#EEF2F7", 3: "#CDD5E0" },
+        border:       "transparent",
+        destructive:  "#EF4444",
+        // Backward compat
+        term:  { DEFAULT: "#6C63FF" },
+        arc:   { 500: "#6C63FF", 600: "#5B52EE" },
+        cyber: { 500: "#6C63FF" },
       },
       fontFamily: {
-        sans: ["var(--font-outfit)", "Outfit", "Inter", "sans-serif"],
-        mono: ["var(--font-outfit)", "Outfit", "Inter", "sans-serif"],
+        display: ["var(--font-plus-jakarta)", "Plus Jakarta Sans", "sans-serif"],
+        sans:    ["var(--font-dm-sans)",      "DM Sans",           "sans-serif"],
+        mono:    ["var(--font-dm-sans)",      "DM Sans",           "sans-serif"],
       },
-      animation: {
-        "fade-in":   "fadeIn 0.2s ease-out",
-        "slide-up":  "slideUp 0.25s ease-out",
-        "blink":     "cursorBlink 1s step-end infinite",
-        "pulse-arc": "pulse 2s ease-in-out infinite",
-        "scan":      "fadeIn 0.2s ease-out", // compat noop
-        "glitch":    "fadeIn 0.2s ease-out", // compat noop
-        "glow":      "pulse 2s ease-in-out infinite",
-        "blink-slow":"cursorBlink 1.4s step-end infinite",
+      boxShadow: {
+        // ── Neumorphic shadows ───────────────────────────────────────────────
+        neu:               "9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5)",
+        "neu-hover":       "12px 12px 20px rgb(163,177,198,0.7), -12px -12px 20px rgba(255,255,255,0.6)",
+        "neu-sm":          "5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255,0.5)",
+        "neu-xs":          "3px 3px 6px rgb(163,177,198,0.5), -3px -3px 6px rgba(255,255,255,0.4)",
+        "neu-inset":       "inset 6px 6px 10px rgb(163,177,198,0.6), inset -6px -6px 10px rgba(255,255,255,0.5)",
+        "neu-inset-deep":  "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)",
+        "neu-inset-sm":    "inset 3px 3px 6px rgb(163,177,198,0.6), inset -3px -3px 6px rgba(255,255,255,0.5)",
+        "neu-accent":      "9px 9px 16px rgba(108,99,255,0.35), -9px -9px 16px rgba(255,255,255,0.5)",
+        "neu-accent-hover":"12px 12px 20px rgba(108,99,255,0.45), -12px -12px 20px rgba(255,255,255,0.6)",
+        // Backward compat — no-op (neumorphism uses class-level shadows)
+        "term": "none", "term-lg": "none", "card": "none",
       },
       keyframes: {
+        float: {
+          "0%, 100%": { transform: "translateY(0px)" },
+          "50%":      { transform: "translateY(-8px)" },
+        },
+        "slide-up": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to:   { opacity: "1", transform: "translateY(0)" },
+        },
         fadeIn: {
           from: { opacity: "0" },
           to:   { opacity: "1" },
-        },
-        slideUp: {
-          from: { opacity: "0", transform: "translateY(8px)" },
-          to:   { opacity: "1", transform: "translateY(0)" },
         },
         cursorBlink: {
           "0%,100%": { opacity: "1" },
           "50%":     { opacity: "0" },
         },
       },
-      boxShadow: {
-        // No shadows in the new design system
-        "term":    "none",
-        "term-lg": "none",
-        "amber":   "none",
-        "arc":     "none",
-        "cyber":   "none",
-        "card":    "none",
+      animation: {
+        float:      "float 3s ease-in-out infinite",
+        "slide-up": "slide-up 0.25s ease-out",
+        "fade-in":  "fadeIn 0.2s ease-out",
       },
     },
   },

@@ -97,19 +97,25 @@ export default function AgentsPage() {
       return Number((b.createdAt ?? 0n) - (a.createdAt ?? 0n));
     });
 
+  const NEU_INSET = "inset 6px 6px 10px rgb(163,177,198,0.6), inset -6px -6px 10px rgba(255,255,255,0.5)";
+  const NEU_SM    = "5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255,0.5)";
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-10" style={{ background: "#E0E5EC" }}>
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
         <div>
-          <h1 className="text-3xl font-800 text-gray-900 tracking-tight" style={{ fontWeight: 800 }}>
+          <h1
+            className="text-3xl tracking-tight"
+            style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#3D4852" }}
+          >
             AI Agents
           </h1>
-          <p className="text-[14px] text-gray-500 mt-1">
+          <p className="text-[14px] mt-1" style={{ color: "#6B7280" }}>
             {isLoading
               ? <span className="animate-pulse">Loading agents...</span>
-              : <><span className="text-gray-900 font-600" style={{ fontWeight: 600 }}>{filtered.length}</span> agents online</>
+              : <><span style={{ color: "#3D4852", fontWeight: 600 }}>{filtered.length}</span> agents online</>
             }
           </p>
         </div>
@@ -119,29 +125,30 @@ export default function AgentsPage() {
       </div>
 
       {/* ── Controls ────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 mb-8">
         {/* Search */}
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "#8B95A5" }} />
           <input
             type="text"
             placeholder="Search agents by name or skill..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+            className="w-full pl-11 pr-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+            style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
           />
         </div>
 
         {/* Verified toggle */}
         <button
           onClick={() => setVerified(!verified)}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2.5 rounded-lg border text-[13px] font-500 transition-all",
-            verified
-              ? "bg-blue-500 border-blue-500 text-white"
-              : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
-          )}
-          style={{ fontWeight: 500 }}
+          className="flex items-center gap-2 px-5 py-3 rounded-2xl text-[13px] border-0 cursor-pointer transition-all duration-300"
+          style={{
+            fontWeight: 500,
+            color:      verified ? "#6C63FF" : "#6B7280",
+            background: "#E0E5EC",
+            boxShadow:  verified ? NEU_INSET : NEU_SM,
+          }}
         >
           <CheckCircle className="h-4 w-4" />
           Verified Only
@@ -151,7 +158,8 @@ export default function AgentsPage() {
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-          className="py-2.5 px-3 bg-gray-100 border-2 border-transparent rounded-lg text-[13px] text-gray-700 outline-none focus:border-blue-500 focus:bg-white cursor-pointer transition-all"
+          className="py-3 pl-4 pr-9 rounded-2xl text-[13px] border-0 outline-none cursor-pointer transition-all duration-300"
+          style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_SM }}
         >
           <option value="reputation">Sort: Top Reputation</option>
           <option value="jobs">Sort: Most Jobs Done</option>
@@ -161,33 +169,33 @@ export default function AgentsPage() {
 
       {/* ── Grid ────────────────────────────────────────────────────────────── */}
       {isLoading ? (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
-          <div className="text-[14px] text-gray-500 animate-pulse mb-2">
+        <div className="rounded-[32px] py-16 text-center" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+          <div className="text-[14px] animate-pulse mb-2" style={{ color: "#6B7280" }}>
             Loading on-chain agent data...
           </div>
-          <div className="text-[12px] text-gray-400">Querying Arc Testnet (chain ID 5042002)</div>
+          <div className="text-[12px]" style={{ color: "#8B95A5" }}>Querying Arc Testnet (chain ID 5042002)</div>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
-          <div className="text-[16px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
+        <div className="rounded-[32px] py-16 text-center" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+          <div className="text-[16px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>
             {agents.length === 0 ? "No agents registered yet" : "No agents match your search"}
           </div>
-          <div className="text-[14px] text-gray-500">
+          <div className="text-[14px]" style={{ color: "#6B7280" }}>
             {agents.length === 0
-              ? <Link href="/register" className="text-blue-500 hover:underline">Register the first agent →</Link>
+              ? <Link href="/register" style={{ color: "#6C63FF" }}>Register the first agent →</Link>
               : "Try a different search or disable filters"
             }
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((agent) => (
             <AgentCard key={agent.agentId} agent={agent} />
           ))}
         </div>
       )}
 
-      <p className="text-center text-[12px] text-gray-400 mt-8">
+      <p className="text-center text-[12px] mt-10" style={{ color: "#8B95A5" }}>
         Live data from Arc Testnet · Chain ID 5042002 · {agents.length} agents indexed
       </p>
     </div>

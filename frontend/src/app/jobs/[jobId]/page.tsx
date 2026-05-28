@@ -7,9 +7,54 @@ import { Loader2, Send, RotateCcw, CheckCircle2, ExternalLink, ArrowLeft, Star, 
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import toast            from "react-hot-toast";
 import { CONTRACT_ADDRESSES, JOB_REGISTRY_ABI, AGENT_REGISTRY_ABI } from "@/lib/contracts";
-import { formatUsdc, formatDeadline, timeAgo, shortAddr, cn } from "@/lib/utils";
+import { formatUsdc, formatDeadline, timeAgo, shortAddr } from "@/lib/utils";
 import { ARC_EXPLORER_URL } from "@/lib/arc";
 import { JobStatus, type Job } from "@/types";
+
+// ─── Shadow constants ─────────────────────────────────────────────────────────
+
+const NEU           = "9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5)";
+const NEU_SM        = "5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255,0.5)";
+const NEU_INSET     = "inset 6px 6px 10px rgb(163,177,198,0.6), inset -6px -6px 10px rgba(255,255,255,0.5)";
+const NEU_INSET_SM  = "inset 3px 3px 6px rgb(163,177,198,0.6), inset -3px -3px 6px rgba(255,255,255,0.5)";
+
+// ─── Status styles ─────────────────────────────────────────────────────────────
+
+const STATUS_LABEL: Record<number, string> = {
+  [JobStatus.Open]:       "Open",
+  [JobStatus.Assigned]:   "Assigned",
+  [JobStatus.InProgress]: "In Progress",
+  [JobStatus.Submitted]:  "Submitted",
+  [JobStatus.Completed]:  "Completed",
+  [JobStatus.Disputed]:   "Disputed",
+  [JobStatus.Resolved]:   "Resolved",
+  [JobStatus.Cancelled]:  "Cancelled",
+};
+
+const STATUS_COLOR: Record<number, string> = {
+  [JobStatus.Open]:       "#38B2AC",
+  [JobStatus.Assigned]:   "#F59E0B",
+  [JobStatus.InProgress]: "#F59E0B",
+  [JobStatus.Submitted]:  "#6C63FF",
+  [JobStatus.Completed]:  "#6B7280",
+  [JobStatus.Disputed]:   "#EF4444",
+  [JobStatus.Resolved]:   "#6B7280",
+  [JobStatus.Cancelled]:  "#8B95A5",
+};
+
+const SKILL_HEX: Record<string, string> = {
+  solidity:   "#3B82F6",
+  rust:       "#EA580C",
+  python:     "#CA8A04",
+  typescript: "#0284C7",
+  defi:       "#059669",
+  nft:        "#7C3AED",
+  ai:         "#6C63FF",
+};
+
+function getSkillColor(s: string): string {
+  return SKILL_HEX[s.toLowerCase()] ?? "#6B7280";
+}
 
 // ─── Applicant row ────────────────────────────────────────────────────────────
 
@@ -32,21 +77,22 @@ function ApplicantRow({
   });
   const a = agentRaw as any;
   if (!a) return (
-    <div className="h-12 bg-gray-50 rounded-lg animate-pulse" />
+    <div className="h-12 rounded-2xl animate-pulse" style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }} />
   );
 
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+    <div
+      className="flex items-center justify-between p-3.5 rounded-2xl transition-all duration-200"
+      style={{ background: "#E0E5EC", boxShadow: NEU_SM }}
+    >
       <div>
         <div className="flex items-center gap-1.5">
-          <div className="text-[13px] font-600 text-gray-900" style={{ fontWeight: 600 }}>
-            {a.name}
-          </div>
+          <span className="text-[13px]" style={{ fontWeight: 600, color: "#3D4852" }}>{a.name}</span>
           {a.verified && (
-            <span className="text-[10px] font-600 text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full" style={{ fontWeight: 600 }}>✓</span>
+            <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#38B2AC" }} />
           )}
         </div>
-        <div className="text-[11px] text-gray-400 mt-0.5">
+        <div className="text-[11px] mt-0.5" style={{ color: "#8B95A5" }}>
           Rep {a.reputationScore?.toString() ?? "?"}/100 · {a.jobsCompleted?.toString() ?? "0"} jobs done
         </div>
       </div>
@@ -54,8 +100,10 @@ function ApplicantRow({
         <button
           onClick={() => onAssign(agentId)}
           disabled={assigning}
-          className="text-[12px] font-600 px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-50 shrink-0 hover:scale-105"
-          style={{ fontWeight: 600 }}
+          className="text-[12px] px-4 py-1.5 rounded-2xl text-white border-0 cursor-pointer transition-all duration-200 disabled:opacity-50 shrink-0"
+          style={{ fontWeight: 600, background: "#6C63FF", boxShadow: NEU_SM }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = ""}
         >
           {assigning ? <Loader2 className="h-3 w-3 animate-spin" /> : "Assign →"}
         </button>
@@ -64,41 +112,7 @@ function ApplicantRow({
   );
 }
 
-// ─── Status styles ────────────────────────────────────────────────────────────
-
-const STATUS_LABEL: Record<number, string> = {
-  [JobStatus.Open]:       "Open",
-  [JobStatus.Assigned]:   "Assigned",
-  [JobStatus.InProgress]: "In Progress",
-  [JobStatus.Submitted]:  "Submitted",
-  [JobStatus.Completed]:  "Completed",
-  [JobStatus.Disputed]:   "Disputed",
-  [JobStatus.Resolved]:   "Resolved",
-  [JobStatus.Cancelled]:  "Cancelled",
-};
-
-const STATUS_STYLE: Record<number, { badge: string; dot: string }> = {
-  [JobStatus.Open]:       { badge: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
-  [JobStatus.Assigned]:   { badge: "bg-amber-100 text-amber-700",     dot: "bg-amber-500"   },
-  [JobStatus.InProgress]: { badge: "bg-amber-100 text-amber-700",     dot: "bg-amber-500"   },
-  [JobStatus.Submitted]:  { badge: "bg-blue-100 text-blue-700",       dot: "bg-blue-500"    },
-  [JobStatus.Completed]:  { badge: "bg-gray-100 text-gray-600",       dot: "bg-gray-400"    },
-  [JobStatus.Disputed]:   { badge: "bg-red-100 text-red-700",         dot: "bg-red-500"     },
-  [JobStatus.Resolved]:   { badge: "bg-gray-100 text-gray-600",       dot: "bg-gray-400"    },
-  [JobStatus.Cancelled]:  { badge: "bg-gray-100 text-gray-400",       dot: "bg-gray-300"    },
-};
-
-const SKILL_COLORS: Record<string, string> = {
-  solidity:   "bg-blue-50 text-blue-700 border-blue-200",
-  rust:       "bg-orange-50 text-orange-700 border-orange-200",
-  python:     "bg-yellow-50 text-yellow-700 border-yellow-200",
-  typescript: "bg-sky-50 text-sky-700 border-sky-200",
-  defi:       "bg-emerald-50 text-emerald-700 border-emerald-200",
-};
-
-function getSkillStyle(skill: string): string {
-  return SKILL_COLORS[skill.toLowerCase()] ?? "bg-gray-50 text-gray-600 border-gray-200";
-}
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function JobDetailPage() {
   const params = useParams<{ jobId: string }>();
@@ -193,12 +207,18 @@ export default function JobDetailPage() {
   // ── Loading ──────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <Link href="/jobs" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-[13px] mb-6 hover:no-underline transition-colors">
+      <div className="max-w-4xl mx-auto px-4 py-10" style={{ background: "#E0E5EC" }}>
+        <Link
+          href="/jobs"
+          className="inline-flex items-center gap-1.5 text-[13px] mb-6 hover:no-underline transition-colors"
+          style={{ color: "#6B7280" }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#3D4852"}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#6B7280"}
+        >
           <ArrowLeft className="h-4 w-4" /> Back to Jobs
         </Link>
-        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
-          <div className="text-[14px] text-gray-500 animate-pulse">Loading job data...</div>
+        <div className="rounded-[32px] py-16 text-center" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+          <div className="text-[14px] animate-pulse" style={{ color: "#6B7280" }}>Loading job data...</div>
         </div>
       </div>
     );
@@ -206,23 +226,29 @@ export default function JobDetailPage() {
 
   if (!jobRaw) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <Link href="/jobs" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-[13px] mb-6 hover:no-underline transition-colors">
+      <div className="max-w-4xl mx-auto px-4 py-10" style={{ background: "#E0E5EC" }}>
+        <Link
+          href="/jobs"
+          className="inline-flex items-center gap-1.5 text-[13px] mb-6 hover:no-underline transition-colors"
+          style={{ color: "#6B7280" }}
+          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#3D4852"}
+          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#6B7280"}
+        >
           <ArrowLeft className="h-4 w-4" /> Back to Jobs
         </Link>
-        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
-          <div className="text-[16px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>Job not found</div>
-          <div className="text-[13px] text-gray-400">{jobId}</div>
+        <div className="rounded-[32px] py-16 text-center" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+          <div className="text-[16px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>Job not found</div>
+          <div className="text-[13px] font-mono" style={{ color: "#8B95A5" }}>{jobId}</div>
         </div>
       </div>
     );
   }
 
-  const job         = jobRaw as unknown as Job;
-  const statusIdx   = Number(job.status ?? 0);
-  const statusStyle = STATUS_STYLE[statusIdx] ?? { badge: "bg-gray-100 text-gray-600", dot: "bg-gray-400" };
+  const job       = jobRaw as unknown as Job;
+  const statusIdx = Number(job.status ?? 0);
+  const statusColor = STATUS_COLOR[statusIdx] ?? "#8B95A5";
 
-  // ── Role detection ─────────────────────────────────────────────────────
+  // ── Role detection ────────────────────────────────────────────────────────
   const norm = (s: string | undefined) => s?.toLowerCase() ?? "";
 
   const isEmployer = !!address && norm(address) === norm((job as any).employer);
@@ -249,29 +275,35 @@ export default function JobDetailPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <Link href="/jobs" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-[13px] mb-6 hover:no-underline transition-colors">
+    <div className="max-w-4xl mx-auto px-4 py-10" style={{ background: "#E0E5EC" }}>
+      <Link
+        href="/jobs"
+        className="inline-flex items-center gap-1.5 text-[13px] mb-6 hover:no-underline transition-colors"
+        style={{ color: "#6B7280" }}
+        onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#3D4852"}
+        onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#6B7280"}
+      >
         <ArrowLeft className="h-4 w-4" /> Back to Jobs
       </Link>
 
-      {/* Transaction status */}
+      {/* Transaction status banners */}
       {isPending && (
-        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-amber-700">
+        <div className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#F59E0B" }}>
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           Waiting for wallet confirmation...
         </div>
       )}
       {isMining && txHash && (
-        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-blue-700">
+        <div className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#6C63FF" }}>
           <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           Transaction on-chain...{" "}
-          <a href={`https://testnet.arcscan.app/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="underline">
+          <a href={`https://testnet.arcscan.app/tx/${txHash}`} target="_blank" rel="noopener noreferrer" style={{ color: "#6C63FF", textDecoration: "underline" }}>
             {shortAddr(txHash, 8)} ↗
           </a>
         </div>
       )}
       {txSuccess && (
-        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-emerald-700">
+        <div className="flex items-center gap-2 px-4 py-3 mb-4 text-[13px] rounded-2xl" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#38B2AC" }}>
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           Transaction confirmed ✓
         </div>
@@ -280,31 +312,37 @@ export default function JobDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* ── Main ────────────────────────────────────────────────────────── */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-5">
 
           {/* Header card */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="rounded-[32px] p-6" style={{ background: "#E0E5EC", boxShadow: NEU }}>
+            <div className="flex items-start justify-between gap-3 mb-5">
               <div className="flex-1 min-w-0">
-                <div className="text-[11px] text-gray-400 mb-1">#{String(job.jobId).slice(-8)}</div>
-                <h1 className="text-[22px] font-800 text-gray-900 leading-tight" style={{ fontWeight: 800 }}>
+                <div className="text-[11px] mb-1 font-mono" style={{ color: "#8B95A5" }}>#{String(job.jobId).slice(-8)}</div>
+                <h1
+                  className="text-[22px] leading-tight"
+                  style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#3D4852" }}
+                >
                   {job.title}
                 </h1>
-                <div className="text-[13px] text-gray-500 mt-1">
-                  by{" "}
+                <div className="text-[13px] mt-1.5">
+                  <span style={{ color: "#6B7280" }}>by </span>
                   <a
                     href={`${ARC_EXPLORER_URL}/address/${job.employer}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-500 hover:underline font-500"
-                    style={{ fontWeight: 500 }}
+                    className="hover:no-underline transition-colors"
+                    style={{ color: "#6C63FF", fontWeight: 500 }}
                   >
                     {shortAddr(job.employer)} ↗
                   </a>
                 </div>
               </div>
-              <span className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-600 shrink-0", statusStyle.badge)} style={{ fontWeight: 600 }}>
-                <span className={cn("w-2 h-2 rounded-full", statusStyle.dot)} />
+              <span
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] shrink-0"
+                style={{ fontWeight: 600, color: statusColor, background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+              >
+                <span className="w-2 h-2 rounded-full" style={{ background: statusColor }} />
                 {STATUS_LABEL[statusIdx] ?? "Unknown"}
               </span>
             </div>
@@ -313,7 +351,11 @@ export default function JobDetailPage() {
             {job.requiredSkills?.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {job.requiredSkills.map((s) => (
-                  <span key={s} className={cn("px-2.5 py-0.5 rounded-full text-[12px] font-500 border", getSkillStyle(s))} style={{ fontWeight: 500 }}>
+                  <span
+                    key={s}
+                    className="px-2.5 py-0.5 rounded-full text-[12px]"
+                    style={{ fontWeight: 500, color: getSkillColor(s), background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                  >
                     {s}
                   </span>
                 ))}
@@ -322,25 +364,31 @@ export default function JobDetailPage() {
           </div>
 
           {/* Description */}
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
-            <h2 className="text-[14px] font-700 text-gray-900 mb-3" style={{ fontWeight: 700 }}>Description</h2>
-            <p className="text-[14px] text-gray-600 leading-relaxed whitespace-pre-wrap">
+          <div className="rounded-[32px] p-6" style={{ background: "#E0E5EC", boxShadow: NEU }}>
+            <h2
+              className="text-[14px] mb-3"
+              style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#3D4852" }}
+            >
+              Description
+            </h2>
+            <p className="text-[14px] leading-relaxed whitespace-pre-wrap" style={{ color: "#6B7280" }}>
               {job.description}
             </p>
           </div>
 
           {/* Deliverable (if submitted) */}
           {job.deliverableURI && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="rounded-[24px] p-4" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
               <div className="flex items-center gap-2 mb-2">
-                <ExternalLink className="h-4 w-4 text-blue-500" />
-                <span className="text-[13px] font-600 text-blue-700" style={{ fontWeight: 600 }}>Deliverable Submitted</span>
+                <ExternalLink className="h-4 w-4" style={{ color: "#6C63FF" }} />
+                <span className="text-[13px]" style={{ fontWeight: 600, color: "#3D4852" }}>Deliverable Submitted</span>
               </div>
               <a
                 href={job.deliverableURI}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline text-[13px] break-all"
+                className="text-[13px] break-all"
+                style={{ color: "#6C63FF" }}
               >
                 {job.deliverableURI}
               </a>
@@ -349,14 +397,19 @@ export default function JobDetailPage() {
 
           {/* ── Agent Actions ──────────────────────────────────────────────── */}
           {isConnected && !isEmployer && (
-            <div className="bg-white border border-gray-200 rounded-lg p-5">
-              <h2 className="text-[14px] font-700 text-gray-900 mb-4" style={{ fontWeight: 700 }}>Your Actions</h2>
+            <div className="rounded-[32px] p-5" style={{ background: "#E0E5EC", boxShadow: NEU }}>
+              <h2
+                className="text-[14px] mb-4"
+                style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#3D4852" }}
+              >
+                Your Actions
+              </h2>
               <div className="space-y-3">
 
                 {/* Case 1: Not registered */}
                 {!hasAgent && (
                   <div className="space-y-3">
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-[13px] text-red-700">
+                    <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#EF4444" }}>
                       You need to register an agent before you can apply for jobs.
                     </div>
                     <Link href="/register" className="btn-primary w-full justify-center">
@@ -368,14 +421,14 @@ export default function JobDetailPage() {
                 {/* Case 2: Has agent */}
                 {hasAgent && (
                   <>
-                    <div className="text-[12px] text-gray-400">
-                      Acting as: <span className="text-gray-700 font-500" style={{ fontWeight: 500 }}>{myAgent?.name}</span>
+                    <div className="text-[12px]" style={{ color: "#8B95A5" }}>
+                      Acting as: <span style={{ color: "#3D4852", fontWeight: 500 }}>{myAgent?.name}</span>
                     </div>
 
                     {/* Assigned agent actions */}
                     {isAssignedAgent && (
                       <>
-                        <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-[13px] text-emerald-700">
+                        <div className="flex items-center gap-2 p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#38B2AC" }}>
                           <CheckCircle2 className="h-4 w-4 shrink-0" />
                           You are the assigned agent
                         </div>
@@ -398,7 +451,10 @@ export default function JobDetailPage() {
                               placeholder="ipfs:// or https:// — your deliverable link"
                               value={deliverableURI}
                               onChange={(e) => setDeliverableURI(e.target.value)}
-                              className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
+                              className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300"
+                              style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+                              onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+                              onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
                             />
                             <button
                               onClick={() => {
@@ -414,13 +470,13 @@ export default function JobDetailPage() {
                         )}
 
                         {jobStatus === JobStatus.Submitted && (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[13px] text-amber-700">
+                          <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#F59E0B" }}>
                             Deliverable submitted — waiting for employer review.
                           </div>
                         )}
 
                         {jobStatus === JobStatus.Completed && (
-                          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-[13px] text-emerald-700">
+                          <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#38B2AC" }}>
                             ✓ Job completed — payment released!
                           </div>
                         )}
@@ -431,12 +487,12 @@ export default function JobDetailPage() {
                     {hasApplied && !isAssignedAgent && (
                       <>
                         {jobStatus === JobStatus.Open && (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[13px] text-amber-700">
+                          <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#F59E0B" }}>
                             Application submitted — waiting for employer to assign.
                           </div>
                         )}
                         {jobStatus !== JobStatus.Open && (
-                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-[13px] text-gray-600">
+                          <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#6B7280" }}>
                             Another agent was selected for this job.
                           </div>
                         )}
@@ -457,9 +513,9 @@ export default function JobDetailPage() {
 
                     {/* Not open, not applied, not assigned */}
                     {!canApply && !hasApplied && !isAssignedAgent && (
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-[13px] text-gray-600">
+                      <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#6B7280" }}>
                         This job is not accepting applications.
-                        <span className="text-gray-400 ml-1">Status: {STATUS_LABEL[statusIdx]}</span>
+                        <span className="ml-1" style={{ color: "#8B95A5" }}>Status: {STATUS_LABEL[statusIdx]}</span>
                       </div>
                     )}
                   </>
@@ -470,20 +526,25 @@ export default function JobDetailPage() {
 
           {/* Connect wallet prompt */}
           {!isConnected && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-              <p className="text-[14px] text-gray-500 mb-1">Connect your wallet to apply or manage this job</p>
-              <p className="text-[12px] text-gray-400">Use the Connect button in the top navigation</p>
+            <div className="rounded-[32px] p-6 text-center" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
+              <p className="text-[14px] mb-1" style={{ color: "#6B7280" }}>Connect your wallet to apply or manage this job</p>
+              <p className="text-[12px]" style={{ color: "#8B95A5" }}>Use the Connect button in the top navigation</p>
             </div>
           )}
 
           {/* ── Employer Actions ───────────────────────────────────────────── */}
           {isConnected && isEmployer && (
-            <div className="bg-white border border-gray-200 rounded-lg p-5">
-              <h2 className="text-[14px] font-700 text-gray-900 mb-4" style={{ fontWeight: 700 }}>Employer Actions</h2>
+            <div className="rounded-[32px] p-5" style={{ background: "#E0E5EC", boxShadow: NEU }}>
+              <h2
+                className="text-[14px] mb-4"
+                style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#3D4852" }}
+              >
+                Employer Actions
+              </h2>
               <div className="space-y-3">
 
                 {jobStatus === JobStatus.Open && applicantIds.length > 0 && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-[13px] text-blue-700">
+                  <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#6C63FF" }}>
                     {applicantIds.length} agent{applicantIds.length > 1 ? "s" : ""} applied — see sidebar to assign.
                   </div>
                 )}
@@ -492,10 +553,12 @@ export default function JobDetailPage() {
                   <button
                     onClick={() => tx("cancelJob", [job.jobId])}
                     disabled={loading}
-                    className="w-full py-2.5 text-[13px] font-600 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                    style={{ fontWeight: 600 }}
+                    className="w-full py-2.5 text-[13px] rounded-2xl cursor-pointer border-0 transition-all duration-300"
+                    style={{ fontWeight: 600, color: "#EF4444", background: "#E0E5EC", boxShadow: NEU_SM }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.boxShadow = NEU_SM}
                   >
-                    Cancel Job & Refund USDC
+                    Cancel Job &amp; Refund USDC
                   </button>
                 )}
 
@@ -503,21 +566,19 @@ export default function JobDetailPage() {
                   <div className="space-y-4">
                     {/* Rating */}
                     <div>
-                      <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
-                        Rating
-                      </label>
+                      <label className="block text-[13px] mb-2" style={{ fontWeight: 600, color: "#3D4852" }}>Rating</label>
                       <div className="flex gap-2">
                         {[1,2,3,4,5].map((r) => (
                           <button
                             key={r}
                             onClick={() => setRating(r)}
-                            className={cn(
-                              "flex-1 py-2.5 rounded-lg text-[13px] font-600 border transition-all",
-                              rating === r
-                                ? "bg-amber-500 border-amber-500 text-white"
-                                : "border-gray-200 text-gray-500 hover:border-amber-300 hover:text-amber-600"
-                            )}
-                            style={{ fontWeight: 600 }}
+                            className="flex-1 py-2.5 rounded-2xl text-[13px] cursor-pointer border-0 transition-all duration-200"
+                            style={{
+                              fontWeight: 600,
+                              background: "#E0E5EC",
+                              color: rating === r ? "#F59E0B" : "#6B7280",
+                              boxShadow: rating === r ? NEU_INSET_SM : NEU_SM,
+                            }}
                           >
                             {r} <Star className="inline h-3 w-3" />
                           </button>
@@ -531,7 +592,10 @@ export default function JobDetailPage() {
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       rows={2}
-                      className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all resize-none"
+                      className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300 resize-none"
+                      style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+                      onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+                      onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
                     />
 
                     <button
@@ -539,16 +603,22 @@ export default function JobDetailPage() {
                       disabled={loading}
                       className="btn-primary w-full justify-center py-3"
                     >
-                      <CheckCircle2 className="h-4 w-4" /> Approve & Release Payment
+                      <CheckCircle2 className="h-4 w-4" /> Approve &amp; Release Payment
                     </button>
 
-                    <div className="border-t border-gray-100 pt-4 space-y-3">
+                    <div
+                      className="pt-4 space-y-3"
+                      style={{ borderTop: "1px solid rgba(163,177,198,0.35)" }}
+                    >
                       <textarea
                         placeholder="Request revision — describe what needs changing..."
                         value={revisionNote}
                         onChange={(e) => setRevisionNote(e.target.value)}
                         rows={2}
-                        className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] placeholder-gray-400 outline-none focus:border-amber-500 focus:bg-white transition-all resize-none"
+                        className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300 resize-none"
+                        style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+                        onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
+                        onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
                       />
                       <button
                         onClick={() => {
@@ -556,8 +626,10 @@ export default function JobDetailPage() {
                           tx("requestRevision", [job.jobId, revisionNote]);
                         }}
                         disabled={loading}
-                        className="w-full py-2.5 text-[13px] font-600 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors flex items-center justify-center gap-2"
-                        style={{ fontWeight: 600 }}
+                        className="w-full py-2.5 text-[13px] rounded-2xl cursor-pointer border-0 transition-all duration-300 flex items-center justify-center gap-2"
+                        style={{ fontWeight: 600, color: "#F59E0B", background: "#E0E5EC", boxShadow: NEU_SM }}
+                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.boxShadow = NEU_SM}
                       >
                         <RotateCcw className="h-4 w-4" /> Request Revision
                       </button>
@@ -569,54 +641,66 @@ export default function JobDetailPage() {
           )}
         </div>
 
-        {/* ── Sidebar ──────────────────────────────────────────────────────── */}
-        <div className="space-y-4">
+        {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+        <div className="space-y-5">
 
           {/* Budget card */}
-          <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <div className="rounded-[32px] p-5" style={{ background: "#E0E5EC", boxShadow: NEU }}>
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-                <DollarSign className="h-4 w-4 text-blue-500" />
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+              >
+                <DollarSign className="h-4 w-4" style={{ color: "#6C63FF" }} />
               </div>
-              <span className="text-[13px] font-600 text-gray-900" style={{ fontWeight: 600 }}>Budget</span>
+              <span className="text-[13px]" style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#3D4852" }}>Budget</span>
             </div>
-            <div className="text-[28px] font-800 text-blue-600 mb-1" style={{ fontWeight: 800 }}>
+            <div
+              className="text-[30px] mb-1"
+              style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#6C63FF" }}
+            >
               {formatUsdc(job.budget)}
             </div>
-            <div className="text-[12px] text-gray-400">USDC locked in escrow</div>
-            <div className="mt-4 space-y-2 pt-4 border-t border-gray-100 text-[13px]">
+            <div className="text-[12px]" style={{ color: "#8B95A5" }}>USDC locked in escrow</div>
+            <div
+              className="mt-4 space-y-2 pt-4 text-[13px]"
+              style={{ borderTop: "1px solid rgba(163,177,198,0.35)" }}
+            >
               <div className="flex justify-between">
-                <span className="text-gray-500">Platform fee (2.5%)</span>
-                <span className="text-gray-600">{formatUsdc(platformFee)}</span>
+                <span style={{ color: "#6B7280" }}>Platform fee (2.5%)</span>
+                <span style={{ color: "#6B7280" }}>{formatUsdc(platformFee)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Agent earns</span>
-                <span className="font-600 text-emerald-600" style={{ fontWeight: 600 }}>{formatUsdc(job.budget - platformFee)}</span>
+                <span style={{ color: "#6B7280" }}>Agent earns</span>
+                <span style={{ fontWeight: 600, color: "#38B2AC" }}>{formatUsdc(job.budget - platformFee)}</span>
               </div>
             </div>
           </div>
 
           {/* Timeline */}
-          <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <div className="rounded-[32px] p-5" style={{ background: "#E0E5EC", boxShadow: NEU }}>
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
-                <Clock className="h-4 w-4 text-amber-500" />
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+              >
+                <Clock className="h-4 w-4" style={{ color: "#F59E0B" }} />
               </div>
-              <span className="text-[13px] font-600 text-gray-900" style={{ fontWeight: 600 }}>Timeline</span>
+              <span className="text-[13px]" style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#3D4852" }}>Timeline</span>
             </div>
             <div className="space-y-2 text-[13px]">
               <div className="flex justify-between">
-                <span className="text-gray-500">Posted</span>
-                <span className="text-gray-700">{timeAgo(job.createdAt)}</span>
+                <span style={{ color: "#6B7280" }}>Posted</span>
+                <span style={{ color: "#3D4852" }}>{timeAgo(job.createdAt)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Deadline</span>
-                <span className="text-amber-600 font-500" style={{ fontWeight: 500 }}>{formatDeadline(job.deadline)}</span>
+                <span style={{ color: "#6B7280" }}>Deadline</span>
+                <span style={{ fontWeight: 500, color: "#F59E0B" }}>{formatDeadline(job.deadline)}</span>
               </div>
               {job.completedAt > 0n && (
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Completed</span>
-                  <span className="text-gray-600">{timeAgo(job.completedAt)}</span>
+                  <span style={{ color: "#6B7280" }}>Completed</span>
+                  <span style={{ color: "#3D4852" }}>{timeAgo(job.completedAt)}</span>
                 </div>
               )}
             </div>
@@ -624,19 +708,25 @@ export default function JobDetailPage() {
 
           {/* Applicants */}
           {(jobStatus === JobStatus.Open || jobStatus === JobStatus.Assigned) && (
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <div className="rounded-[32px] overflow-hidden" style={{ background: "#E0E5EC", boxShadow: NEU }}>
+              <div
+                className="flex items-center justify-between px-5 py-4"
+                style={{ borderBottom: "1px solid rgba(163,177,198,0.35)" }}
+              >
                 <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-gray-500" />
-                  <span className="text-[13px] font-600 text-gray-900" style={{ fontWeight: 600 }}>Applicants</span>
+                  <Shield className="h-4 w-4" style={{ color: "#6B7280" }} />
+                  <span className="text-[13px]" style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#3D4852" }}>Applicants</span>
                 </div>
-                <span className="text-[12px] font-600 px-2 py-0.5 rounded-full bg-gray-200 text-gray-600" style={{ fontWeight: 600 }}>
+                <span
+                  className="text-[12px] px-2.5 py-0.5 rounded-full"
+                  style={{ fontWeight: 600, color: "#6C63FF", background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                >
                   {applicantIds.length}
                 </span>
               </div>
-              <div className="p-3 space-y-2">
+              <div className="p-4 space-y-2.5">
                 {applicantIds.length === 0 ? (
-                  <div className="text-[13px] text-gray-400 text-center py-4 animate-pulse">
+                  <div className="text-[13px] text-center py-4 animate-pulse" style={{ color: "#8B95A5" }}>
                     Waiting for applications...
                   </div>
                 ) : (
@@ -651,7 +741,7 @@ export default function JobDetailPage() {
                       />
                     ))}
                     {!isEmployer && (
-                      <p className="text-[11px] text-gray-400 pt-1">Only the employer can assign agents.</p>
+                      <p className="text-[11px] pt-1" style={{ color: "#8B95A5" }}>Only the employer can assign agents.</p>
                     )}
                   </>
                 )}
@@ -660,14 +750,15 @@ export default function JobDetailPage() {
           )}
 
           {/* Job ID */}
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <div className="text-[12px] font-600 text-gray-600 mb-2" style={{ fontWeight: 600 }}>Job ID</div>
-            <p className="text-[11px] text-gray-400 break-all font-mono mb-2">{job.jobId}</p>
+          <div className="rounded-[32px] p-5" style={{ background: "#E0E5EC", boxShadow: NEU }}>
+            <div className="text-[12px] mb-2" style={{ fontWeight: 600, color: "#6B7280" }}>Job ID</div>
+            <p className="text-[11px] break-all font-mono mb-3" style={{ color: "#8B95A5" }}>{job.jobId}</p>
             <a
               href={`${ARC_EXPLORER_URL}/address/${CONTRACT_ADDRESSES.jobRegistry}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[12px] text-blue-500 hover:underline"
+              className="inline-flex items-center gap-1 text-[12px] hover:no-underline transition-colors"
+              style={{ color: "#6C63FF" }}
             >
               View on ArcScan <ChevronRight className="h-3 w-3" />
             </a>
