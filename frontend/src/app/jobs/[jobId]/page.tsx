@@ -262,7 +262,10 @@ export default function JobDetailPage() {
   const jobStatus  = Number(job.status ?? 0);
   const canApply   = hasAgent && jobStatus === JobStatus.Open && !hasApplied && !isEmployer;
 
-  const platformFee = (job.budget * 250n) / 10000n;
+  const platformFee   = (job.budget * 250n) / 10000n;
+  const isExpired     = BigInt(Math.floor(Date.now() / 1000)) > job.deadline;
+  const canClaimRefund = isEmployer && isExpired &&
+    (jobStatus === JobStatus.Open || jobStatus === JobStatus.Assigned || jobStatus === JobStatus.InProgress);
 
   const tx = (fn: string, args: unknown[]) => {
     setLastAction(fn);
@@ -510,8 +513,15 @@ export default function JobDetailPage() {
                       </>
                     )}
 
+                    {/* Deadline expired notice for agent */}
+                    {isExpired && (jobStatus === JobStatus.InProgress || jobStatus === JobStatus.Assigned) && isAssignedAgent && (
+                      <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#EF4444" }}>
+                        ⚠ Deadline has passed. Submit your deliverable ASAP — employer may claim a refund at any time.
+                      </div>
+                    )}
+
                     {/* Can apply */}
-                    {canApply && (
+                    {canApply && !isExpired && (
                       <button
                         onClick={() => tx("applyForJob", [job.jobId])}
                         disabled={loading}
@@ -523,7 +533,7 @@ export default function JobDetailPage() {
                     )}
 
                     {/* Not open, not applied, not assigned */}
-                    {!canApply && !hasApplied && !isAssignedAgent && (
+                    {(!canApply || isExpired) && !hasApplied && !isAssignedAgent && (
                       <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#6B7280" }}>
                         This job is not accepting applications.
                         <span className="ml-1" style={{ color: "#8B95A5" }}>Status: {STATUS_LABEL[statusIdx]}</span>
@@ -554,13 +564,33 @@ export default function JobDetailPage() {
               </h2>
               <div className="space-y-3">
 
-                {jobStatus === JobStatus.Open && applicantIds.length > 0 && (
+                {/* Expired banner */}
+                {isExpired && (jobStatus === JobStatus.Open || jobStatus === JobStatus.Assigned || jobStatus === JobStatus.InProgress) && (
+                  <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#EF4444" }}>
+                    ⚠ Deadline has passed — agent did not complete the job.
+                  </div>
+                )}
+
+                {jobStatus === JobStatus.Open && applicantIds.length > 0 && !isExpired && (
                   <div className="p-3 rounded-2xl text-[13px]" style={{ background: "#E0E5EC", boxShadow: NEU_INSET, color: "#6C63FF" }}>
                     {applicantIds.length} agent{applicantIds.length > 1 ? "s" : ""} applied — see sidebar to assign.
                   </div>
                 )}
 
-                {(jobStatus === JobStatus.Open || jobStatus === JobStatus.Assigned) && (
+                {/* Claim expired refund — deadline passed, agent never finished */}
+                {canClaimRefund && (
+                  <button
+                    onClick={() => tx("claimExpiredRefund", [job.jobId])}
+                    disabled={loading}
+                    className="btn-primary w-full justify-center py-3 text-[14px]"
+                  >
+                    {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Claim Full Refund (Deadline Expired)
+                  </button>
+                )}
+
+                {/* Cancel — only before InProgress and deadline not passed */}
+                {!canClaimRefund && !isExpired && (jobStatus === JobStatus.Open || jobStatus === JobStatus.Assigned) && (
                   <button
                     onClick={() => tx("cancelJob", [job.jobId])}
                     disabled={loading}
@@ -706,7 +736,9 @@ export default function JobDetailPage() {
               </div>
               <div className="flex justify-between">
                 <span style={{ color: "#6B7280" }}>Deadline</span>
-                <span style={{ fontWeight: 500, color: "#F59E0B" }}>{formatDeadline(job.deadline)}</span>
+                <span style={{ fontWeight: 500, color: isExpired ? "#EF4444" : "#F59E0B" }}>
+                  {isExpired ? "Expired" : formatDeadline(job.deadline)}
+                </span>
               </div>
               {job.completedAt > 0n && (
                 <div className="flex justify-between">
