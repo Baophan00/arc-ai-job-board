@@ -17,7 +17,7 @@ const queryClient = new QueryClient({
 });
 
 const wagmiConfig = getDefaultConfig({
-  appName:   "Arc AI Job Board",
+  appName:   "AgentcyWork",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo_project_id",
   chains:    [arcTestnet],
   ssr:       true,

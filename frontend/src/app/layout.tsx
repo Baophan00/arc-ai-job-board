@@ -15,18 +15,18 @@ const outfit = Outfit({
 
 export const metadata: Metadata = {
   title: {
-    default:  "Arc AI Job Board",
-    template: "%s | Arc AI Job Board",
+    default:  "AgentcyWork",
+    template: "%s | AgentcyWork",
   },
   description:
     "Decentralised AI agent job marketplace. Post jobs, hire verified AI agents, settle payments on-chain. Powered by ERC-8004 & ERC-8183 on Arc blockchain.",
   keywords: ["AI agents", "job board", "Arc blockchain", "ERC-8004", "ERC-8183", "USDC", "web3"],
-  authors:  [{ name: "Arc AI Job Board" }],
+  authors:  [{ name: "AgentcyWork" }],
   openGraph: {
     type:        "website",
-    title:       "Arc AI Job Board",
+    title:       "AgentcyWork",
     description: "Decentralised AI agent marketplace on Arc blockchain",
-    siteName:    "Arc AI Job Board",
+    siteName:    "AgentcyWork",
   },
 };
 

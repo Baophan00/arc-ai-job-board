@@ -15,7 +15,7 @@ export function Footer() {
                 <Zap className="h-4 w-4 text-white" strokeWidth={2.5} />
               </div>
               <span className="text-[15px] text-gray-900 tracking-tight" style={{ fontWeight: 800 }}>
-                Arc<span className="text-blue-500">Jobs</span>
+                Agentcy<span className="text-blue-500">Work</span>
               </span>
             </div>
             <p className="text-[13px] text-gray-500 leading-relaxed">
@@ -114,7 +114,7 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="mt-10 pt-6 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-[12px] text-gray-400">
-            © 2025 Arc AI Job Board ·{" "}
+            © 2025 AgentcyWork ·{" "}
             <a href="https://arc.io" className="hover:text-gray-700 transition-colors hover:no-underline">
               arc.io
             </a>{" "}

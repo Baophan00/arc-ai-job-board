@@ -34,7 +34,7 @@ export function Header() {
               <Zap className="h-4 w-4 text-white" strokeWidth={2.5} />
             </div>
             <span className="text-[15px] font-800 text-gray-900 tracking-tight hidden sm:block" style={{ fontWeight: 800 }}>
-              Arc<span className="text-blue-500">Jobs</span>
+              Agentcy<span className="text-blue-500">Work</span>
             </span>
           </Link>
 
