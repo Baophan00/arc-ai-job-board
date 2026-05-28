@@ -1,170 +1,209 @@
 "use client";
 
-import { useParams }  from "next/navigation";
-import Link           from "next/link";
-import {
-  ArrowLeft, ShieldCheck, Star, Briefcase, Clock, ExternalLink, Bot,
-} from "lucide-react";
-import { shortAddr, timeAgo, reputationColor, reputationLabel, skillColor, formatUsdc } from "@/lib/utils";
-import { cn }        from "@/lib/utils";
+import { useParams }      from "next/navigation";
+import Link               from "next/link";
+import { ExternalLink, ArrowLeft, CheckCircle, Star, Award, Briefcase } from "lucide-react";
+import { useReadContract } from "wagmi";
+import { CONTRACT_ADDRESSES, AGENT_REGISTRY_ABI, JOB_REGISTRY_ABI } from "@/lib/contracts";
+import { shortAddr, timeAgo, reputationLabel } from "@/lib/utils";
 import { ARC_EXPLORER_URL } from "@/lib/arc";
-import type { Agent } from "@/types";
-import { JobStatus, type Job } from "@/types";
+import type { Agent }     from "@/types";
 
-// Demo data — replace with useReadContract({ functionName: "getAgent", args: [agentId] })
-function useDemoAgent(agentId: string): Agent {
-  return {
-    agentId:         agentId as `0x${string}`,
-    wallet:          "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" as `0x${string}`,
-    name:            "DeFi Auditor Pro",
-    skills:          ["Solidity", "Security Audit", "DeFi", "Arc Chain", "Reentrancy", "Overflow", "Access Control"],
-    agentURI:        "ipfs://QmXyz/agent.json",
-    reputationScore: 92n,
-    jobsCompleted:   47n,
-    verified:        true,
-    createdAt:       BigInt(Math.floor(Date.now() / 1000) - 90 * 86400),
-  };
+const SKILL_COLORS: Record<string, string> = {
+  solidity:   "bg-blue-50 text-blue-700 border-blue-200",
+  rust:       "bg-orange-50 text-orange-700 border-orange-200",
+  python:     "bg-yellow-50 text-yellow-700 border-yellow-200",
+  typescript: "bg-sky-50 text-sky-700 border-sky-200",
+  defi:       "bg-emerald-50 text-emerald-700 border-emerald-200",
+  nft:        "bg-purple-50 text-purple-700 border-purple-200",
+  ai:         "bg-violet-50 text-violet-700 border-violet-200",
+};
+
+function getSkillStyle(skill: string): string {
+  return SKILL_COLORS[skill.toLowerCase()] ?? "bg-gray-50 text-gray-600 border-gray-200";
 }
 
-const DEMO_HISTORY: Array<{ title: string; budget: bigint; status: JobStatus; date: number }> = [
-  { title: "ERC-20 Security Audit",          budget: BigInt(500_000_000),   status: JobStatus.Completed, date: Date.now()/1000 - 2*86400   },
-  { title: "NFT Marketplace Vulnerability",   budget: BigInt(800_000_000),   status: JobStatus.Completed, date: Date.now()/1000 - 10*86400  },
-  { title: "DeFi Protocol Audit — Arc",       budget: BigInt(1_200_000_000), status: JobStatus.Completed, date: Date.now()/1000 - 20*86400  },
-  { title: "Token Vesting Contract Review",   budget: BigInt(350_000_000),   status: JobStatus.Completed, date: Date.now()/1000 - 35*86400  },
-];
+function reputationBadge(score: number): { label: string; style: string } {
+  if (score >= 90) return { label: "Elite",    style: "bg-violet-100 text-violet-700" };
+  if (score >= 70) return { label: "Expert",   style: "bg-blue-100 text-blue-700"     };
+  if (score >= 50) return { label: "Pro",      style: "bg-emerald-100 text-emerald-700" };
+  if (score >= 30) return { label: "Rising",   style: "bg-amber-100 text-amber-700"   };
+  return             { label: "Newcomer", style: "bg-gray-100 text-gray-600"      };
+}
 
 export default function AgentProfilePage() {
-  const params = useParams<{ agentId: string }>();
-  const agent  = useDemoAgent(params.agentId);
-  const score  = Number(agent.reputationScore);
+  const params  = useParams<{ agentId: string }>();
+  const agentId = params.agentId as `0x${string}`;
+
+  const { data: agentRaw, isLoading } = useReadContract({
+    address:      CONTRACT_ADDRESSES.agentRegistry,
+    abi:          AGENT_REGISTRY_ABI,
+    functionName: "getAgent",
+    args:         [agentId],
+  });
+
+  const { data: agentJobIds } = useReadContract({
+    address:      CONTRACT_ADDRESSES.jobRegistry,
+    abi:          JOB_REGISTRY_ABI,
+    functionName: "getAgentJobs",
+    args:         [agentId],
+    query:        { enabled: !!agentRaw },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Link href="/agents" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-[13px] mb-6 hover:no-underline transition-colors">
+          <ArrowLeft className="h-4 w-4" /> Back to Agents
+        </Link>
+        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
+          <div className="text-[14px] text-gray-500 animate-pulse">Loading agent profile...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!agentRaw) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <Link href="/agents" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-[13px] mb-6 hover:no-underline transition-colors">
+          <ArrowLeft className="h-4 w-4" /> Back to Agents
+        </Link>
+        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
+          <div className="text-[16px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>Agent not found</div>
+          <div className="text-[12px] text-gray-400">{agentId}</div>
+        </div>
+      </div>
+    );
+  }
+
+  const agent  = agentRaw as unknown as Agent;
+  const score  = Number(agent.reputationScore ?? 0n);
+  const jobIds = (agentJobIds as `0x${string}`[] | undefined) ?? [];
+  const repBadge = reputationBadge(score);
 
   return (
-    <div className="page-container max-w-4xl mx-auto">
-      <Link href="/agents" className="btn-ghost inline-flex items-center gap-1.5 mb-6 -ml-2">
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <Link href="/agents" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-[13px] mb-6 hover:no-underline transition-colors">
         <ArrowLeft className="h-4 w-4" /> Back to Agents
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* ── Profile card ─────────────────────────────────────────────── */}
+        {/* ── Profile sidebar ──────────────────────────────────────────────── */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="card">
-            {/* Avatar */}
-            <div className="flex flex-col items-center text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-arc-500/30 to-cyber-500/20 border border-arc-500/20 text-4xl font-black text-white mb-3">
-                {agent.name.charAt(0)}
+          <div className="bg-white border border-gray-200 rounded-lg p-5">
+            {/* Avatar + name */}
+            <div className="flex items-start gap-3 mb-5">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center shrink-0 text-white text-[22px] font-800" style={{ fontWeight: 800 }}>
+                {agent.name?.charAt(0).toUpperCase()}
               </div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-lg font-bold text-white">{agent.name}</h1>
-                {agent.verified && <ShieldCheck className="h-5 w-5 text-cyber-400" />}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h1 className="text-[17px] font-800 text-gray-900 leading-tight" style={{ fontWeight: 800 }}>
+                    {agent.name}
+                  </h1>
+                  {agent.verified && (
+                    <CheckCircle className="h-5 w-5 text-blue-500 shrink-0" />
+                  )}
+                </div>
+                <div className="text-[12px] text-gray-400 mt-0.5 font-mono">
+                  {shortAddr(agent.wallet, 6)}
+                </div>
+                <span className={`inline-block text-[11px] font-600 px-2 py-0.5 rounded-full mt-1 ${repBadge.style}`} style={{ fontWeight: 600 }}>
+                  {repBadge.label}
+                </span>
               </div>
-              <p className="text-xs text-gray-500 font-mono mt-1">{shortAddr(agent.wallet, 6)}</p>
             </div>
 
-            {/* Reputation */}
-            <div className="mt-4 rounded-xl bg-surface-3 border border-white/5 p-3 text-center">
-              <div className={cn("text-3xl font-extrabold", reputationColor(score))}>{score}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{reputationLabel(score)}</div>
-              <div className="mt-2 h-2 rounded-full bg-surface-4 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-arc transition-all"
-                  style={{ width: `${score}%` }}
-                />
+            {/* Rep bar */}
+            <div className="mb-4">
+              <div className="flex justify-between text-[13px] mb-1.5">
+                <span className="text-gray-500">Reputation</span>
+                <span className="font-700 text-gray-900" style={{ fontWeight: 700 }}>{score}/100</span>
               </div>
+              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${Math.min(100, score)}%` }} />
+              </div>
+              <div className="text-[12px] text-gray-400 mt-1">{reputationLabel(score)}</div>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              <div className="rounded-xl bg-surface-3 border border-white/5 p-2.5 text-center">
-                <div className="text-xl font-bold text-white">{agent.jobsCompleted.toString()}</div>
-                <div className="text-[10px] text-gray-500">Jobs Done</div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="text-[22px] font-800 text-emerald-600" style={{ fontWeight: 800 }}>
+                  {agent.jobsCompleted?.toString() ?? "0"}
+                </div>
+                <div className="text-[11px] text-gray-500">Jobs Done</div>
               </div>
-              <div className="rounded-xl bg-surface-3 border border-white/5 p-2.5 text-center">
-                <div className="text-xl font-bold text-white">{agent.skills.length}</div>
-                <div className="text-[10px] text-gray-500">Skills</div>
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="text-[22px] font-800 text-blue-600" style={{ fontWeight: 800 }}>
+                  {agent.skills?.length ?? 0}
+                </div>
+                <div className="text-[11px] text-gray-500">Skills</div>
               </div>
             </div>
 
+            {/* Skills */}
+            {agent.skills?.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {agent.skills.map((s) => (
+                  <span key={s} className={`px-2.5 py-0.5 rounded-full text-[11px] font-500 border ${getSkillStyle(s)}`} style={{ fontWeight: 500 }}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Links */}
-            <div className="mt-4 space-y-2">
+            <div className="space-y-2 pt-4 border-t border-gray-100">
               <a
                 href={`${ARC_EXPLORER_URL}/address/${agent.wallet}`}
-                target="_blank" rel="noopener noreferrer"
-                className="btn-secondary w-full flex items-center justify-center gap-2 text-xs"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-[13px] text-blue-500 hover:underline hover:no-underline transition-colors"
               >
-                View on ArcScan <ExternalLink className="h-3 w-3" />
+                <ExternalLink className="h-4 w-4" /> View on ArcScan
               </a>
               {agent.agentURI && (
                 <a
                   href={agent.agentURI}
-                  target="_blank" rel="noopener noreferrer"
-                  className="btn-ghost w-full flex items-center justify-center gap-2 text-xs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[13px] text-blue-500 hover:underline transition-colors"
                 >
-                  <Bot className="h-3 w-3" /> Agent Manifest (ERC-8004)
+                  <ExternalLink className="h-4 w-4" /> ERC-8004 Manifest
                 </a>
               )}
             </div>
 
-            {/* Badges */}
-            <div className="mt-4 space-y-1.5">
-              {agent.verified && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-cyber-500/10 border border-cyber-500/20">
-                  <ShieldCheck className="h-4 w-4 text-cyber-400" />
-                  <span className="text-xs font-semibold text-cyber-300">Platform Verified</span>
-                </div>
-              )}
-              {Number(agent.jobsCompleted) >= 10 && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-arc-500/10 border border-arc-500/20">
-                  <Briefcase className="h-4 w-4 text-arc-400" />
-                  <span className="text-xs font-semibold text-arc-300">10+ Jobs Completed</span>
-                </div>
-              )}
-              {score >= 80 && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
-                  <Star className="h-4 w-4 text-yellow-400" />
-                  <span className="text-xs font-semibold text-yellow-300">Top Rated Agent</span>
-                </div>
-              )}
+            <div className="mt-3 text-[12px] text-gray-400">
+              Registered {timeAgo(agent.createdAt)}
             </div>
-
-            <p className="mt-4 text-[10px] text-gray-600 text-center flex items-center justify-center gap-1">
-              <Clock className="h-3 w-3" /> Member since {timeAgo(agent.createdAt)}
-            </p>
           </div>
         </div>
 
-        {/* ── Right column ─────────────────────────────────────────────── */}
-        <div className="lg:col-span-2 space-y-5">
-          {/* Skills */}
-          <div className="card">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Skills</h2>
-            <div className="flex flex-wrap gap-2">
-              {agent.skills.map((s) => (
-                <span key={s} className={cn("px-2.5 py-1 text-xs font-medium rounded-lg border", skillColor(s))}>
-                  {s}
-                </span>
-              ))}
-            </div>
-          </div>
+        {/* ── Right column ─────────────────────────────────────────────────── */}
+        <div className="lg:col-span-2 space-y-4">
 
-          {/* Agent ID */}
-          <div className="card">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          {/* Identity */}
+          <div className="bg-white border border-gray-200 rounded-lg p-5">
+            <h2 className="text-[14px] font-700 text-gray-900 mb-3" style={{ fontWeight: 700 }}>
               ERC-8004 Identity
             </h2>
-            <div className="space-y-2 text-xs font-mono text-gray-500">
+            <div className="space-y-2 text-[12px] font-mono">
               <div>
-                <span className="text-gray-600">agentId:</span>
-                <span className="ml-2 text-arc-300 break-all">{agent.agentId}</span>
+                <span className="text-gray-400">agentId: </span>
+                <span className="text-gray-700 break-all">{agent.agentId}</span>
               </div>
               <div>
-                <span className="text-gray-600">wallet:</span>
-                <span className="ml-2 text-gray-300 break-all">{agent.wallet}</span>
+                <span className="text-gray-400">wallet: </span>
+                <span className="text-gray-700 break-all">{agent.wallet}</span>
               </div>
               {agent.agentURI && (
                 <div>
-                  <span className="text-gray-600">agentURI:</span>
-                  <a href={agent.agentURI} className="ml-2 text-arc-400 hover:underline break-all" target="_blank">
+                  <span className="text-gray-400">agentURI: </span>
+                  <a href={agent.agentURI} className="text-blue-500 hover:underline break-all" target="_blank" rel="noopener noreferrer">
                     {agent.agentURI}
                   </a>
                 </div>
@@ -172,24 +211,83 @@ export default function AgentProfilePage() {
             </div>
           </div>
 
-          {/* Job History */}
-          <div className="card">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-              Job History ({DEMO_HISTORY.length})
+          {/* Badges */}
+          <div className="bg-white border border-gray-200 rounded-lg p-5">
+            <h2 className="text-[14px] font-700 text-gray-900 mb-3" style={{ fontWeight: 700 }}>
+              Badges
             </h2>
             <div className="space-y-2">
-              {DEMO_HISTORY.map((job, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-surface-3 border border-white/5">
+              {agent.verified && (
+                <div className="flex items-center gap-2.5 p-3 bg-blue-50 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-blue-500 shrink-0" />
                   <div>
-                    <p className="text-xs font-medium text-white">{job.title}</p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">{timeAgo(job.date)}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-semibold text-cyber-400">{formatUsdc(job.budget)}</p>
-                    <p className="text-[10px] text-green-400">Completed</p>
+                    <div className="text-[13px] font-600 text-blue-700" style={{ fontWeight: 600 }}>Platform Verified</div>
+                    <div className="text-[12px] text-blue-500">Identity confirmed by Arc platform</div>
                   </div>
                 </div>
-              ))}
+              )}
+              {Number(agent.jobsCompleted ?? 0) >= 10 && (
+                <div className="flex items-center gap-2.5 p-3 bg-emerald-50 rounded-lg">
+                  <Briefcase className="h-5 w-5 text-emerald-500 shrink-0" />
+                  <div>
+                    <div className="text-[13px] font-600 text-emerald-700" style={{ fontWeight: 600 }}>10+ Jobs Completed</div>
+                    <div className="text-[12px] text-emerald-500">Experienced on-chain contractor</div>
+                  </div>
+                </div>
+              )}
+              {score >= 80 && (
+                <div className="flex items-center gap-2.5 p-3 bg-amber-50 rounded-lg">
+                  <Star className="h-5 w-5 text-amber-500 shrink-0" />
+                  <div>
+                    <div className="text-[13px] font-600 text-amber-700" style={{ fontWeight: 600 }}>Top Rated Agent</div>
+                    <div className="text-[12px] text-amber-500">Reputation score ≥ 80</div>
+                  </div>
+                </div>
+              )}
+              {!agent.verified && Number(agent.jobsCompleted ?? 0) < 10 && score < 80 && (
+                <div className="flex items-center gap-2.5 p-3 bg-gray-50 rounded-lg">
+                  <Award className="h-5 w-5 text-gray-400 shrink-0" />
+                  <div>
+                    <div className="text-[13px] text-gray-500">No badges yet</div>
+                    <div className="text-[12px] text-gray-400">Complete jobs to earn badges</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Job history */}
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <h2 className="text-[13px] font-600 text-gray-900" style={{ fontWeight: 600 }}>Job History</h2>
+              <span className="text-[12px] text-gray-500">{jobIds.length} jobs</span>
+            </div>
+            <div className="p-3">
+              {jobIds.length === 0 ? (
+                <div className="text-[13px] text-gray-400 text-center py-8">
+                  No jobs completed yet
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {jobIds.slice(0, 10).map((id) => (
+                    <Link
+                      key={id}
+                      href={`/jobs/${id}`}
+                      className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:border-blue-200 hover:bg-blue-50/30 transition-all hover:no-underline group"
+                    >
+                      <span className="text-[12px] font-mono text-gray-500 group-hover:text-blue-600 transition-colors">
+                        {shortAddr(id, 10)}
+                      </span>
+                      <span className="text-[12px] text-gray-300 group-hover:text-blue-400 transition-colors">→</span>
+                    </Link>
+                  ))}
+                  {jobIds.length > 10 && (
+                    <div className="text-[12px] text-gray-400 text-center pt-2">
+                      +{jobIds.length - 10} more jobs
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

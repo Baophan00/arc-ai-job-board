@@ -1,94 +1,60 @@
 "use client";
 
-import { useState }   from "react";
-import Link            from "next/link";
-import { JobCard }     from "@/components/jobs/JobCard";
-import { formatUsdc }  from "@/lib/utils";
-import { cn }          from "@/lib/utils";
-import type { Job }    from "@/types";
-import { JobStatus }   from "@/types";
+import { useState, useEffect }      from "react";
+import Link                          from "next/link";
+import { usePublicClient, useReadContracts } from "wagmi";
+import { parseAbiItem }              from "viem";
+import { Search, Plus }              from "lucide-react";
+import { JobCard }                   from "@/components/jobs/JobCard";
+import { formatUsdc }                from "@/lib/utils";
+import { cn }                        from "@/lib/utils";
+import { CONTRACT_ADDRESSES, JOB_REGISTRY_ABI } from "@/lib/contracts";
+import type { Job }                  from "@/types";
+import { JobStatus }                 from "@/types";
 
 // ─── Filter options ───────────────────────────────────────────────────────────
 
 const STATUS_FILTERS = [
-  { value: "all",       label: "ALL_JOBS"    },
-  { value: "open",      label: "OPEN"        },
-  { value: "progress",  label: "IN_PROGRESS" },
-  { value: "completed", label: "COMPLETED"   },
+  { value: "all",       label: "All Jobs"    },
+  { value: "open",      label: "Open"        },
+  { value: "progress",  label: "In Progress" },
+  { value: "completed", label: "Completed"   },
 ];
 
-// ─── Demo data ────────────────────────────────────────────────────────────────
+const JOB_CREATED_EVENT = parseAbiItem(
+  "event JobCreated(bytes32 indexed jobId, address indexed employer, uint256 budget, string title)"
+);
 
-const DEMO_JOBS: Job[] = [
-  {
-    jobId:          "0x1a2b3c" as `0x${string}`,
-    employer:       "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" as `0x${string}`,
-    assignedAgent:  "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
-    title:          "Build a DeFi yield optimiser agent",
-    description:
-      "Implement an AI agent that monitors multiple DeFi protocols on Arc and automatically reallocates USDC to the highest yield strategy.",
-    requiredSkills: ["DeFi", "Solidity", "Python", "Arc Chain"],
-    budget:         BigInt(500_000_000),
-    deadline:       BigInt(Math.floor(Date.now() / 1000) + 7 * 86400),
-    status:         JobStatus.Open,
-    deliverableURI: "",
-    jobURI:         "ipfs://Qm...",
-    platformFee:    BigInt(12_500_000),
-    createdAt:      BigInt(Math.floor(Date.now() / 1000) - 3600),
-    completedAt:    0n,
-  },
-  {
-    jobId:          "0x2b3c4d" as `0x${string}`,
-    employer:       "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B" as `0x${string}`,
-    assignedAgent:  "0x0000000000000000000000000000000000000000000000000000000000000001" as `0x${string}`,
-    title:          "Natural Language Smart Contract Auditor",
-    description:
-      "Create an AI agent that reads Solidity code, identifies common vulnerabilities (reentrancy, overflow, access control) and outputs a structured report.",
-    requiredSkills: ["Solidity", "Security", "NLP", "Auditing"],
-    budget:         BigInt(1_200_000_000),
-    deadline:       BigInt(Math.floor(Date.now() / 1000) + 14 * 86400),
-    status:         JobStatus.InProgress,
-    deliverableURI: "",
-    jobURI:         "",
-    platformFee:    BigInt(30_000_000),
-    createdAt:      BigInt(Math.floor(Date.now() / 1000) - 86400),
-    completedAt:    0n,
-  },
-  {
-    jobId:          "0x3c4d5e" as `0x${string}`,
-    employer:       "0x95222290DD7278Aa3Ddd389Cc1E1d165CC4BAfe5" as `0x${string}`,
-    assignedAgent:  "0x0000000000000000000000000000000000000000000000000000000000000002" as `0x${string}`,
-    title:          "On-chain Data Summarisation Agent",
-    description:
-      "Build an MCP-compatible agent that reads Arc on-chain events and produces human-readable summaries for a Notion workspace integration.",
-    requiredSkills: ["Arc", "MCP", "TypeScript", "Data Analysis"],
-    budget:         BigInt(300_000_000),
-    deadline:       BigInt(Math.floor(Date.now() / 1000) + 5 * 86400),
-    status:         JobStatus.Open,
-    deliverableURI: "",
-    jobURI:         "",
-    platformFee:    BigInt(7_500_000),
-    createdAt:      BigInt(Math.floor(Date.now() / 1000) - 7200),
-    completedAt:    0n,
-  },
-  {
-    jobId:          "0x4d5e6f" as `0x${string}`,
-    employer:       "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266" as `0x${string}`,
-    assignedAgent:  "0x0000000000000000000000000000000000000000000000000000000000000003" as `0x${string}`,
-    title:          "USDC Payments Reconciliation Agent",
-    description:
-      "Agent that listens to Circle CCTP events on Arc and reconciles cross-chain USDC transfers for accounting purposes.",
-    requiredSkills: ["CCTP", "Circle", "Accounting", "Python"],
-    budget:         BigInt(800_000_000),
-    deadline:       BigInt(Math.floor(Date.now() / 1000) + 10 * 86400),
-    status:         JobStatus.Completed,
-    deliverableURI: "ipfs://QmCompletedWork",
-    jobURI:         "",
-    platformFee:    BigInt(20_000_000),
-    createdAt:      BigInt(Math.floor(Date.now() / 1000) - 5 * 86400),
-    completedAt:    BigInt(Math.floor(Date.now() / 1000) - 86400),
-  },
-];
+/** Approximate block when contracts were deployed on Arc Testnet */
+const DEPLOY_BLOCK = 44_380_000n;
+/** Arc Testnet limits eth_getLogs to 10,000 blocks per request */
+const CHUNK_SIZE   = 9_000n;
+
+async function fetchAllJobIds(
+  client: ReturnType<typeof usePublicClient>,
+  contractAddress: `0x${string}`
+): Promise<`0x${string}`[]> {
+  if (!client) return [];
+  const latest = await client.getBlockNumber();
+  const allIds: `0x${string}`[] = [];
+
+  let from = DEPLOY_BLOCK;
+  while (from <= latest) {
+    const to = from + CHUNK_SIZE - 1n < latest ? from + CHUNK_SIZE - 1n : latest;
+    const logs = await client.getLogs({
+      address: contractAddress,
+      event:   JOB_CREATED_EVENT,
+      fromBlock: from,
+      toBlock:   to,
+    });
+    for (const l of logs) {
+      if (l.args.jobId) allIds.push(l.args.jobId as `0x${string}`);
+    }
+    from = to + 1n;
+  }
+
+  return allIds.reverse(); // newest first
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -96,100 +62,151 @@ export default function JobsPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
-  const jobs = DEMO_JOBS;
+  // ── Step 1: fetch all JobCreated event logs ──────────────────────────────
+  const publicClient = usePublicClient();
+  const [jobIds, setJobIds]     = useState<`0x${string}`[]>([]);
+  const [logsLoaded, setLogsLoaded] = useState(false);
 
+  useEffect(() => {
+    if (!publicClient || !CONTRACT_ADDRESSES.jobRegistry) return;
+
+    fetchAllJobIds(publicClient, CONTRACT_ADDRESSES.jobRegistry)
+      .then(setJobIds)
+      .catch(console.error)
+      .finally(() => setLogsLoaded(true));
+  }, [publicClient]);
+
+  // ── Step 2: batch-read full job structs ──────────────────────────────────
+  const { data: jobsData, isLoading: jobsReading } = useReadContracts({
+    contracts: jobIds.map((id) => ({
+      address:      CONTRACT_ADDRESSES.jobRegistry,
+      abi:          JOB_REGISTRY_ABI,
+      functionName: "getJob",
+      args:         [id],
+    })),
+    query: { enabled: jobIds.length > 0 },
+  });
+
+  // ── Step 3: map to Job[] ─────────────────────────────────────────────────
+  const jobs: Job[] = (jobsData ?? [])
+    .filter((r) => r.status === "success" && r.result)
+    .map((r) => r.result as unknown as Job);
+
+  const isLoading = !logsLoaded || jobsReading;
+
+  // ── Filtering + search ───────────────────────────────────────────────────
   const filtered = jobs.filter((job) => {
+    const q = search.toLowerCase();
     const matchSearch =
-      !search ||
-      job.title.toLowerCase().includes(search.toLowerCase()) ||
-      job.requiredSkills.some((s) => s.toLowerCase().includes(search.toLowerCase())) ||
-      job.description.toLowerCase().includes(search.toLowerCase());
+      !q ||
+      job.title.toLowerCase().includes(q) ||
+      job.requiredSkills?.some((s) => s.toLowerCase().includes(q)) ||
+      job.description?.toLowerCase().includes(q);
 
     const matchFilter =
       filter === "all"       ? true :
       filter === "open"      ? job.status === JobStatus.Open :
-      filter === "progress"  ? (job.status === JobStatus.InProgress || job.status === JobStatus.Submitted) :
+      filter === "progress"  ? (job.status === JobStatus.InProgress || job.status === JobStatus.Submitted || job.status === JobStatus.Assigned) :
       filter === "completed" ? job.status === JobStatus.Completed : true;
 
     return matchSearch && matchFilter;
   });
 
-  const totalBudget = filtered.reduce((acc, j) => acc + j.budget, 0n);
+  const totalBudget = filtered.reduce((acc, j) => acc + (j.budget ?? 0n), 0n);
 
   return (
-    <div className="page-container font-mono">
+    <div className="max-w-7xl mx-auto px-4 py-8">
 
       {/* ── Page header ───────────────────────────────────────────────────── */}
-      <div className="border-b border-[#1f521f] pb-4 mb-6">
-        <div className="text-[9px] text-[#1f521f] mb-1 uppercase tracking-[0.2em]">
-          // JOB_REGISTRY :: ERC-8183 :: BROWSE_OPEN_POSITIONS
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-800 text-gray-900 tracking-tight" style={{ fontWeight: 800 }}>
+            Job Board
+          </h1>
+          <p className="text-[14px] text-gray-500 mt-1">
+            {isLoading ? (
+              <span className="animate-pulse">Loading jobs...</span>
+            ) : (
+              <>
+                <span className="text-gray-900 font-600" style={{ fontWeight: 600 }}>{filtered.length}</span> jobs found
+                {totalBudget > 0n && (
+                  <> · <span className="text-blue-600 font-600" style={{ fontWeight: 600 }}>{formatUsdc(totalBudget)} USDC</span> total</>
+                )}
+              </>
+            )}
+          </p>
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-          <div>
-            <h1 className="section-title">Job Board</h1>
-            <p className="text-[10px] text-[#1f521f] mt-1">
-              {filtered.length}_jobs_found&nbsp;·&nbsp;
-              <span className="text-[#33ff00]">{formatUsdc(totalBudget)}</span>_usdc_total_budget
-            </p>
-          </div>
-          <Link href="/jobs/post" className="btn-primary self-start sm:self-auto text-[10px] py-1.5">
-            + POST_JOB
-          </Link>
-        </div>
+        <Link href="/jobs/post" className="btn-primary self-start sm:self-auto">
+          <Plus className="h-4 w-4" /> Post Job
+        </Link>
       </div>
 
-      {/* ── Search ────────────────────────────────────────────────────────── */}
-      <div className="mb-4">
-        <div className="flex items-center border border-[#1f521f] focus-within:border-[#33ff00] transition-colors px-3 py-2">
-          <span className="text-[#33ff00] text-[11px] mr-2 shrink-0 font-bold">root@arc:~$</span>
+      {/* ── Search + Filter bar ───────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        {/* Search */}
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder={'grep -r "skill" ./jobs --include="*.open"'}
+            placeholder="Search jobs by title, skill, or description..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-transparent text-[#33ff00] text-[11px] placeholder:text-[#1f521f] outline-none"
+            className="w-full pl-9 pr-4 py-2.5 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
           />
         </div>
-      </div>
 
-      {/* ── Status filter pills ───────────────────────────────────────────── */}
-      <div className="flex gap-1.5 mb-6 flex-wrap">
-        {STATUS_FILTERS.map(({ value, label }) => (
-          <button
-            key={value}
-            onClick={() => setFilter(value)}
-            className={cn(
-              "px-3 py-1 text-[10px] font-bold uppercase tracking-wider border transition-all",
-              filter === value
-                ? "bg-[#33ff00] border-[#33ff00] text-[#0a0a0a]"
-                : "border-[#1f521f] text-[#1f521f] hover:border-[#33ff00] hover:text-[#33ff00] bg-transparent"
-            )}
-          >
-            [{label}]
-          </button>
-        ))}
+        {/* Status filter pills */}
+        <div className="flex gap-1.5 flex-wrap">
+          {STATUS_FILTERS.map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => setFilter(value)}
+              className={cn(
+                "px-4 py-2 text-[13px] font-500 rounded-lg border transition-all",
+                filter === value
+                  ? "bg-blue-500 border-blue-500 text-white font-600"
+                  : "border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900 bg-white"
+              )}
+              style={{ fontWeight: filter === value ? 600 : 500 }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Job grid ──────────────────────────────────────────────────────── */}
-      {filtered.length === 0 ? (
-        <div className="term-card">
-          <div className="term-card-header">// QUERY_RESULT</div>
-          <div className="term-card-body py-14 text-center">
-            <div className="text-[#ff3333] text-[12px] font-bold mb-2">
-              [ERR] 0 jobs matching query
-            </div>
-            <div className="text-[10px] text-[#1f521f]">
-              try a different search or clear filters
-            </div>
+      {isLoading ? (
+        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
+          <div className="text-[14px] text-gray-500 animate-pulse mb-2">
+            Loading on-chain job data...
+          </div>
+          <div className="text-[12px] text-gray-400">Querying Arc Testnet (chain ID 5042002)</div>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
+          <div className="text-[16px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
+            {jobs.length === 0 ? "No jobs posted yet" : "No jobs match your search"}
+          </div>
+          <div className="text-[14px] text-gray-500">
+            {jobs.length === 0
+              ? <Link href="/jobs/post" className="text-blue-500 hover:underline">Post the first job →</Link>
+              : "Try a different search or clear your filters"
+            }
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((job) => (
             <JobCard key={job.jobId} job={job} />
           ))}
         </div>
       )}
+
+      {/* Chain badge */}
+      <p className="text-center text-[12px] text-gray-400 mt-8">
+        Live data from Arc Testnet · Chain ID 5042002 · {jobs.length} jobs indexed
+      </p>
     </div>
   );
 }

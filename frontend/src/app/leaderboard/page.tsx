@@ -1,162 +1,210 @@
-import { cn, reputationColor, termBar } from "@/lib/utils";
+"use client";
 
-// ─── Data ─────────────────────────────────────────────────────────────────────
+import { useState, useEffect }       from "react";
+import { usePublicClient, useReadContracts } from "wagmi";
+import { parseAbiItem }               from "viem";
+import Link                           from "next/link";
+import { Trophy, Medal, Award, CheckCircle } from "lucide-react";
+import { CONTRACT_ADDRESSES, AGENT_REGISTRY_ABI } from "@/lib/contracts";
+import type { Agent }                 from "@/types";
 
-const LEADERS = [
-  { rank: 1,  name: "DeFi Auditor Pro",         score: 92, jobs: 47, verified: true,  wallet: "0xd8dA…6045" },
-  { rank: 2,  name: "Smart Contract Generator",  score: 88, jobs: 31, verified: true,  wallet: "0xf39F…2266" },
-  { rank: 3,  name: "NLP Summariser v3",          score: 78, jobs: 23, verified: true,  wallet: "0xAb58…eC9B" },
-  { rank: 4,  name: "On-chain Analytics Bot",     score: 71, jobs: 18, verified: false, wallet: "0x7099…79C8" },
-  { rank: 5,  name: "CCTP Bridge Monitor",        score: 65, jobs: 12, verified: false, wallet: "0x9522…4BAfe5" },
-  { rank: 6,  name: "Yield Optimiser",            score: 55, jobs:  8, verified: false, wallet: "0x3C44…3BC" },
-  { rank: 7,  name: "USDC Reconciler",            score: 51, jobs:  5, verified: false, wallet: "0x90F7…4ad" },
-  { rank: 8,  name: "Arc Event Listener",         score: 50, jobs:  2, verified: false, wallet: "0x1234…5678" },
-];
+// ─── Chunked fetch ────────────────────────────────────────────────────────────
 
-const PODIUM_STYLES: Record<number, { header: string; label: string }> = {
-  1: { header: "bg-[#ffb000] text-[#0a0a0a]",           label: "[GOLD]"   },
-  2: { header: "bg-[#888888] text-[#0a0a0a]",           label: "[SILVER]" },
-  3: { header: "bg-[#7a4a00] text-[#ffb000]",           label: "[BRONZE]" },
-};
+const AGENT_REGISTERED_EVENT = parseAbiItem(
+  "event AgentRegistered(bytes32 indexed agentId, address indexed wallet, string name)"
+);
+const DEPLOY_BLOCK = 44_380_000n;
+const CHUNK_SIZE   = 9_000n;
 
-const RANK_COLOR: Record<number, string> = {
-  1: "text-[#ffb000]",
-  2: "text-[#888888]",
-  3: "text-[#7a4a00]",
-};
+async function fetchAllAgentIds(
+  client: ReturnType<typeof usePublicClient>,
+  contractAddress: `0x${string}`
+): Promise<`0x${string}`[]> {
+  if (!client) return [];
+  const latest = await client.getBlockNumber();
+  const allIds: `0x${string}`[] = [];
+  let from = DEPLOY_BLOCK;
+  while (from <= latest) {
+    const to = from + CHUNK_SIZE - 1n < latest ? from + CHUNK_SIZE - 1n : latest;
+    const logs = await client.getLogs({ address: contractAddress, event: AGENT_REGISTERED_EVENT, fromBlock: from, toBlock: to });
+    for (const l of logs) if (l.args.agentId) allIds.push(l.args.agentId as `0x${string}`);
+    from = to + 1n;
+  }
+  return allIds;
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function LeaderboardPage() {
+  const publicClient = usePublicClient();
+  const [agentIds,   setAgentIds]   = useState<`0x${string}`[]>([]);
+  const [logsLoaded, setLogsLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!publicClient || !CONTRACT_ADDRESSES.agentRegistry) return;
+    fetchAllAgentIds(publicClient, CONTRACT_ADDRESSES.agentRegistry)
+      .then(setAgentIds)
+      .catch(console.error)
+      .finally(() => setLogsLoaded(true));
+  }, [publicClient]);
+
+  const { data: agentsData, isLoading: agentsReading } = useReadContracts({
+    contracts: agentIds.map((id) => ({
+      address:      CONTRACT_ADDRESSES.agentRegistry,
+      abi:          AGENT_REGISTRY_ABI,
+      functionName: "getAgent",
+      args:         [id],
+    })),
+    query: { enabled: agentIds.length > 0 },
+  });
+
+  const isLoading = !logsLoaded || agentsReading;
+
+  const leaders: (Agent & { rank: number })[] = (agentsData ?? [])
+    .filter((r) => r.status === "success" && r.result)
+    .map((r) => r.result as unknown as Agent)
+    .sort((a, b) => Number((b.reputationScore ?? 0n) - (a.reputationScore ?? 0n)))
+    .map((a, i) => ({ ...a, rank: i + 1 }));
+
+  const PODIUM_STYLE: Record<number, { bg: string; icon: React.ReactNode; border: string }> = {
+    1: { bg: "bg-amber-50",   border: "border-amber-300", icon: <Trophy className="h-6 w-6 text-amber-500" /> },
+    2: { bg: "bg-gray-50",    border: "border-gray-300",  icon: <Medal  className="h-6 w-6 text-gray-500"  /> },
+    3: { bg: "bg-orange-50",  border: "border-orange-300",icon: <Award  className="h-6 w-6 text-orange-500"/> },
+  };
+
+  const RANK_COLOR: Record<number, string> = {
+    1: "text-amber-500",
+    2: "text-gray-500",
+    3: "text-orange-500",
+  };
+
   return (
-    <div className="page-container max-w-3xl mx-auto font-mono">
+    <div className="max-w-3xl mx-auto px-4 py-8">
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="border-b border-[#1f521f] pb-4 mb-6">
-        <div className="text-[9px] text-[#1f521f] mb-1 uppercase tracking-[0.2em]">
-          // REPUTATION_ORACLE :: ERC-8004 :: TOP_AGENTS
-        </div>
-        <h1 className="section-title">Agent Leaderboard</h1>
-        <p className="section-subtitle">ranked_by_on_chain_reputation_score</p>
+      <div className="mb-8">
+        <h1 className="text-3xl font-800 text-gray-900 tracking-tight" style={{ fontWeight: 800 }}>
+          Agent Leaderboard
+        </h1>
+        <p className="text-[14px] text-gray-500 mt-1">
+          Ranked by on-chain reputation score
+        </p>
       </div>
 
-      {/* ── Podium top 3 ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-2 mb-6">
-        {LEADERS.slice(0, 3).map((agent) => {
-          const pod = PODIUM_STYLES[agent.rank];
-          return (
-            <div key={agent.rank} className="term-card">
-              <div className={cn("term-card-header justify-center text-center text-[9px]", pod.header)}>
-                #{agent.rank} {pod.label}
-              </div>
-              <div className="term-card-body text-center">
-                <div className={cn("text-2xl font-black", reputationColor(agent.score))}>
-                  {agent.score}
-                </div>
-                <div className="text-[8px] text-[#33ff00] mt-0.5">
-                  {termBar(agent.score, 100, 10)}
-                </div>
-                <div className="text-[9px] text-[#33ff00] mt-1.5 font-bold truncate">
-                  {agent.name.replace(/\s+/g, "_").toUpperCase()}
-                </div>
-                <div className="text-[8px] text-[#1f521f] mt-0.5">
-                  {agent.jobs}_jobs
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* ── Full rankings table ─────────────────────────────────────────────── */}
-      <div className="term-card">
-        <div className="term-card-header">
-          <span>// FULL_RANKINGS</span>
-          <span>[{LEADERS.length}_ENTRIES]</span>
+      {isLoading ? (
+        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
+          <div className="text-[14px] text-gray-500 animate-pulse mb-2">Loading leaderboard...</div>
+          <div className="text-[12px] text-gray-400">Reading reputation scores from chain</div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[11px] font-mono">
-            <thead>
-              <tr className="border-b border-[#1f521f] text-[9px] text-[#1f521f] uppercase tracking-widest">
-                <th className="text-left px-4 py-2 w-14">RANK</th>
-                <th className="text-left px-4 py-2">AGENT</th>
-                <th className="text-right px-4 py-2">SCORE</th>
-                <th className="text-right px-4 py-2 hidden sm:table-cell">PROGRESS</th>
-                <th className="text-right px-4 py-2 hidden sm:table-cell">JOBS</th>
-                <th className="text-right px-4 py-2 hidden md:table-cell">WALLET</th>
-              </tr>
-            </thead>
-            <tbody>
-              {LEADERS.map((agent) => (
-                <tr
-                  key={agent.rank}
-                  className="border-b border-[#1f521f]/30 last:border-0 hover:bg-[#1f521f]/10 transition-colors"
-                >
-                  {/* Rank */}
-                  <td className="px-4 py-2.5">
-                    <span className={cn(
-                      "font-bold",
-                      RANK_COLOR[agent.rank] ?? "text-[#1f521f]"
-                    )}>
-                      #{agent.rank}
-                    </span>
-                  </td>
-
-                  {/* Agent name */}
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[#33ff00] font-bold text-[10px]">
-                        {agent.name.replace(/\s+/g, "_").toUpperCase()}
-                      </span>
-                      {agent.verified && (
-                        <span className="text-[9px] text-[#33ff00] border border-[#1f521f] px-1 shrink-0">
-                          [VFD]
-                        </span>
-                      )}
+      ) : leaders.length === 0 ? (
+        <div className="bg-gray-50 rounded-lg border border-gray-200 py-16 text-center">
+          <div className="text-[16px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
+            No agents registered yet
+          </div>
+          <Link href="/register" className="text-blue-500 hover:underline text-[14px]">
+            Register the first agent →
+          </Link>
+        </div>
+      ) : (
+        <>
+          {/* ── Podium top 3 ──────────────────────────────────────────────── */}
+          {leaders.length >= 1 && (
+            <div className={`grid gap-3 mb-6 ${leaders.length >= 3 ? "grid-cols-3" : leaders.length === 2 ? "grid-cols-2" : "grid-cols-1 max-w-xs mx-auto"}`}>
+              {leaders.slice(0, Math.min(3, leaders.length)).map((agent) => {
+                const pod   = PODIUM_STYLE[agent.rank];
+                const score = Number(agent.reputationScore ?? 0n);
+                return (
+                  <Link key={agent.agentId} href={`/agents/${agent.agentId}`}
+                    className={`block ${pod.bg} border ${pod.border} rounded-lg p-4 text-center hover:no-underline hover:scale-[1.03] transition-transform`}
+                  >
+                    <div className="flex justify-center mb-2">{pod.icon}</div>
+                    <div className="text-[28px] font-800 text-gray-900" style={{ fontWeight: 800 }}>{score}</div>
+                    <div className="text-[11px] text-gray-500 mb-2">/ 100</div>
+                    {/* Rep bar */}
+                    <div className="h-1 bg-white rounded-full overflow-hidden mb-2">
+                      <div className="h-full rounded-full bg-blue-500" style={{ width: `${score}%` }} />
                     </div>
-                  </td>
+                    <div className="text-[13px] font-700 text-gray-900 truncate" style={{ fontWeight: 700 }}>
+                      {agent.name}
+                    </div>
+                    <div className="text-[12px] text-gray-500 mt-0.5">
+                      {agent.jobsCompleted?.toString() ?? "0"} jobs done
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
 
-                  {/* Score */}
-                  <td className="px-4 py-2.5 text-right">
-                    <span className={cn("font-bold", reputationColor(agent.score))}>
-                      {agent.score}
-                    </span>
-                    <span className="text-[#1f521f] text-[9px]">/100</span>
-                  </td>
+          {/* ── Full table ─────────────────────────────────────────────────── */}
+          <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
+              <span className="text-[13px] font-600 text-gray-900" style={{ fontWeight: 600 }}>Full Rankings</span>
+              <span className="text-[12px] text-gray-500">{leaders.length} agents</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-b border-gray-100 text-[11px] font-600 text-gray-500 uppercase tracking-wider" style={{ fontWeight: 600 }}>
+                    <th className="text-left px-4 py-3 w-14">Rank</th>
+                    <th className="text-left px-4 py-3">Agent</th>
+                    <th className="text-right px-4 py-3">Score</th>
+                    <th className="text-right px-4 py-3 hidden sm:table-cell">Progress</th>
+                    <th className="text-right px-4 py-3 hidden sm:table-cell">Jobs Done</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaders.map((agent) => {
+                    const score = Number(agent.reputationScore ?? 0n);
+                    return (
+                      <tr
+                        key={agent.agentId}
+                        className="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="px-4 py-3">
+                          <span className={`font-700 text-[14px] ${RANK_COLOR[agent.rank] ?? "text-gray-400"}`} style={{ fontWeight: 700 }}>
+                            #{agent.rank}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Link href={`/agents/${agent.agentId}`}
+                              className="font-600 text-gray-900 hover:text-blue-600 hover:underline"
+                              style={{ fontWeight: 600 }}
+                            >
+                              {agent.name}
+                            </Link>
+                            {agent.verified && (
+                              <CheckCircle className="h-4 w-4 text-blue-500 shrink-0" />
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="font-700 text-blue-600" style={{ fontWeight: 700 }}>{score}</span>
+                          <span className="text-gray-400 text-[11px]">/100</span>
+                        </td>
+                        <td className="px-4 py-3 text-right hidden sm:table-cell">
+                          <div className="flex items-center justify-end">
+                            <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-blue-500" style={{ width: `${score}%` }} />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-500 hidden sm:table-cell">
+                          {agent.jobsCompleted?.toString() ?? "0"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
-                  {/* Progress bar */}
-                  <td className="px-4 py-2.5 text-right text-[#33ff00] hidden sm:table-cell text-[9px] font-mono">
-                    {termBar(agent.score, 100, 12)}
-                  </td>
-
-                  {/* Jobs */}
-                  <td className="px-4 py-2.5 text-right text-[#1f521f] hidden sm:table-cell">
-                    {agent.jobs}
-                  </td>
-
-                  {/* Wallet */}
-                  <td className="px-4 py-2.5 text-right text-[9px] text-[#1f521f] hidden md:table-cell">
-                    {agent.wallet}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Note */}
-      <p className="text-center text-[9px] text-[#1f521f] mt-4">
-        <span className="text-[#1f521f]/60">// </span>
-        scores_update_after_each_job_completion via{" "}
-        <a
-          href="https://eips.ethereum.org/EIPS/eip-8004"
-          className="text-[#33ff00] hover:underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          erc_8004_reputation_oracle
-        </a>
+      <p className="text-center text-[12px] text-gray-400 mt-6">
+        Scores update after each job completion · Arc Testnet · Chain ID 5042002
       </p>
     </div>
   );

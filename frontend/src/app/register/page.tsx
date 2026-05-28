@@ -1,16 +1,16 @@
 "use client";
 
-import { useState }          from "react";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { Bot, Plus, Trash2, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
-import toast                  from "react-hot-toast";
-import Link                   from "next/link";
+import { useState }     from "react";
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from "wagmi";
+import { Loader2, Plus, Trash2, CheckCircle, Zap } from "lucide-react";
+import toast             from "react-hot-toast";
+import Link              from "next/link";
 import { CONTRACT_ADDRESSES, AGENT_REGISTRY_ABI } from "@/lib/contracts";
-import { cn }                 from "@/lib/utils";
 
 const SUGGESTED_SKILLS = [
   "NLP", "Code Review", "Solidity", "Python", "TypeScript", "DeFi",
   "Security Audit", "Data Analysis", "Arc Chain", "MCP", "CCTP", "Automation",
+  "Foundry", "Hardhat", "GraphQL", "Rust", "Go", "Smart Contracts",
 ];
 
 export default function RegisterPage() {
@@ -20,11 +20,24 @@ export default function RegisterPage() {
   const [skills,     setSkills]     = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
   const [agentURI,   setAgentURI]   = useState("");
-  const [registered, setRegistered] = useState(false);
-  const [newAgentId, setNewAgentId] = useState<string | null>(null);
+  const [done,       setDone]       = useState(false);
+
+  // ── Check if already registered ─────────────────────────────────────────
+  const { data: existingAgent } = useReadContract({
+    address:      CONTRACT_ADDRESSES.agentRegistry,
+    abi:          AGENT_REGISTRY_ABI,
+    functionName: "getAgentByWallet",
+    args:         address ? [address] : undefined,
+    query:        { enabled: !!address },
+  });
+  const ea = existingAgent as any;
+  const alreadyRegistered = !!ea && ea.agentId !== "0x0000000000000000000000000000000000000000000000000000000000000000";
 
   const { writeContract, data: txHash, isPending } = useWriteContract();
   const { isLoading: isMining, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const loading = isPending || isMining;
+
+  if (isSuccess && !done) setDone(true);
 
   const addSkill = (skill: string) => {
     const s = skill.trim();
@@ -33,175 +46,201 @@ export default function RegisterPage() {
     setSkillInput("");
   };
 
-  const removeSkill = (skill: string) => {
-    setSkills(skills.filter((s) => s !== skill));
-  };
-
-  const handleRegister = async () => {
+  const handleRegister = () => {
     if (!name.trim())        return toast.error("Agent name is required");
     if (skills.length === 0) return toast.error("Add at least one skill");
     if (!isConnected)        return toast.error("Connect your wallet first");
 
-    try {
-      writeContract({
-        address:      CONTRACT_ADDRESSES.agentRegistry,
-        abi:          AGENT_REGISTRY_ABI,
-        functionName: "registerAgent",
-        args:         [name.trim(), skills],
-      });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Transaction failed";
-      toast.error(message.slice(0, 80));
-    }
+    writeContract({
+      address:      CONTRACT_ADDRESSES.agentRegistry,
+      abi:          AGENT_REGISTRY_ABI,
+      functionName: "registerAgent",
+      args:         [name.trim(), skills],
+    });
   };
 
-  if (isSuccess && !registered) {
-    setRegistered(true);
-    toast.success("Agent registered successfully!");
-  }
-
-  const loading = isPending || isMining;
-
-  if (registered) {
+  // ── Done state ───────────────────────────────────────────────────────────
+  if (done) {
     return (
-      <div className="page-container max-w-lg mx-auto">
-        <div className="card text-center py-12">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-cyber-500/10 border border-cyber-500/20 mx-auto mb-4">
-            <CheckCircle2 className="h-8 w-8 text-cyber-400" />
-          </div>
-          <h1 className="text-2xl font-bold text-white">Agent Registered!</h1>
-          <p className="text-gray-400 text-sm mt-2">
-            Your ERC-8004 identity NFT has been minted on Arc.
-          </p>
-          {newAgentId && (
-            <p className="text-xs font-mono text-arc-300 mt-3 break-all">
-              {newAgentId}
-            </p>
-          )}
-          <div className="mt-8 flex flex-col gap-3">
-            <Link href="/jobs" className="btn-primary">
-              Browse Jobs
-            </Link>
-            <Link href="/dashboard" className="btn-secondary">
-              Go to Dashboard
-            </Link>
-          </div>
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CheckCircle className="h-8 w-8 text-emerald-500" />
+        </div>
+        <h2 className="text-[24px] font-800 text-gray-900 mb-2" style={{ fontWeight: 800 }}>
+          Agent Registered!
+        </h2>
+        <p className="text-[14px] text-gray-500 mb-6">
+          Your ERC-8004 identity NFT has been minted on Arc.<br />
+          Skills and reputation are now stored on-chain.
+        </p>
+        <div className="flex flex-col gap-3">
+          <Link href="/jobs" className="btn-primary justify-center">Browse Jobs →</Link>
+          <Link href="/dashboard" className="btn-secondary justify-center">Go to Dashboard</Link>
         </div>
       </div>
     );
   }
 
+  // ── Already registered ───────────────────────────────────────────────────
+  if (alreadyRegistered) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <CheckCircle className="h-8 w-8 text-blue-500" />
+        </div>
+        <h2 className="text-[24px] font-800 text-gray-900 mb-2" style={{ fontWeight: 800 }}>
+          Already Registered
+        </h2>
+        <p className="text-[14px] text-gray-500 mb-2">
+          <span className="font-600 text-gray-900" style={{ fontWeight: 600 }}>{ea?.name}</span>
+        </p>
+        <p className="text-[13px] text-gray-400 mb-6">
+          {ea?.skills?.length ?? 0} skills · Rep score {ea?.reputationScore?.toString() ?? "50"}/100
+        </p>
+        <div className="flex flex-col gap-3">
+          <Link href="/jobs" className="btn-primary justify-center">Browse Jobs →</Link>
+          <Link href="/dashboard" className="btn-secondary justify-center">Go to Dashboard</Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Form ─────────────────────────────────────────────────────────────────
   return (
-    <div className="page-container max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto px-4 py-8">
+
+      {/* Header */}
       <div className="mb-8">
-        <h1 className="section-title flex items-center gap-2">
-          <Bot className="h-7 w-7 text-arc-400" />
-          Register as an AI Agent
+        <h1 className="text-3xl font-800 text-gray-900 tracking-tight" style={{ fontWeight: 800 }}>
+          Register Agent
         </h1>
-        <p className="section-subtitle mt-1">
-          Mint your ERC-8004 identity NFT on Arc and start taking jobs.
-          Free to register — you only pay Arc gas (USDC).
+        <p className="text-[14px] text-gray-500 mt-1">
+          Mint your ERC-8004 identity NFT on Arc blockchain
         </p>
       </div>
 
+      {/* Not connected warning */}
       {!isConnected && (
-        <div className="mb-6 flex items-start gap-3 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 text-sm">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          Connect your wallet to register an agent.
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-6 text-[13px] text-red-700">
+          <span className="font-600" style={{ fontWeight: 600 }}>Connect your wallet</span> to register an agent
         </div>
       )}
 
-      <div className="space-y-6">
-        {/* Name */}
+      {/* Tx status */}
+      {isPending && (
+        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-amber-700">
+          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+          Waiting for wallet confirmation...
+        </div>
+      )}
+      {isMining && (
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-4 text-[13px] text-blue-700">
+          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+          Minting NFT on Arc...
+        </div>
+      )}
+
+      <div className="space-y-5">
+
+        {/* Agent Name */}
         <div>
-          <label className="label">Agent Name *</label>
+          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
+            Agent Name <span className="text-red-500">*</span>
+          </label>
           <input
             type="text"
-            placeholder="e.g. DeFi Auditor Pro, NLP Summariser v2"
+            placeholder="e.g. DeFi Auditor Pro"
             value={name}
             onChange={(e) => setName(e.target.value)}
             maxLength={80}
-            className="input"
+            className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
           />
-          <p className="text-xs text-gray-600 mt-1.5">
-            Becomes part of your on-chain agentId — choose wisely.
-          </p>
+          <p className="text-[12px] text-gray-400 mt-1">This becomes part of your on-chain agentId — choose carefully.</p>
         </div>
 
         {/* Skills */}
         <div>
-          <label className="label">Skills *</label>
-          <div className="flex gap-2">
+          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
+            Skills <span className="text-red-500">*</span>
+            <span className="text-gray-400 font-400 ml-2" style={{ fontWeight: 400 }}>({skills.length}/20)</span>
+          </label>
+
+          {/* Input */}
+          <div className="flex gap-2 mb-3">
             <input
               type="text"
-              placeholder="Type a skill and press Enter"
+              placeholder="Type a skill and press Enter..."
               value={skillInput}
               onChange={(e) => setSkillInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSkill(skillInput); } }}
-              className="input flex-1"
+              className="flex-1 px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
             />
             <button
               onClick={() => addSkill(skillInput)}
-              className="btn-secondary px-3"
+              className="p-3 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-5 w-5" />
             </button>
-          </div>
-
-          {/* Suggested skills */}
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {SUGGESTED_SKILLS.filter((s) => !skills.includes(s)).map((s) => (
-              <button
-                key={s}
-                onClick={() => addSkill(s)}
-                className="px-2 py-0.5 text-xs text-gray-500 border border-white/10 rounded-md hover:text-white hover:border-white/20 transition-all"
-              >
-                + {s}
-              </button>
-            ))}
           </div>
 
           {/* Selected skills */}
           {skills.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
+            <div className="flex flex-wrap gap-2 mb-3">
               {skills.map((s) => (
-                <span
-                  key={s}
-                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs bg-arc-500/20 text-arc-300 border border-arc-500/30 rounded-lg"
-                >
+                <span key={s} className="flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[12px] font-500" style={{ fontWeight: 500 }}>
                   {s}
-                  <button onClick={() => removeSkill(s)} className="hover:text-white">
+                  <button onClick={() => setSkills(skills.filter((x) => x !== s))} className="ml-1 hover:text-red-500 transition-colors">
                     <Trash2 className="h-3 w-3" />
                   </button>
                 </span>
               ))}
             </div>
           )}
+
+          {/* Suggested */}
+          <div>
+            <p className="text-[12px] text-gray-400 mb-2">Quick add:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {SUGGESTED_SKILLS.filter((s) => !skills.includes(s)).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => addSkill(s)}
+                  className="text-[12px] text-gray-600 bg-gray-100 hover:bg-blue-100 hover:text-blue-700 px-3 py-1 rounded-full transition-colors"
+                >
+                  + {s}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Agent URI (optional) */}
+        {/* Agent URI */}
         <div>
-          <label className="label">Agent URI (optional)</label>
+          <label className="block text-[13px] font-600 text-gray-700 mb-2" style={{ fontWeight: 600 }}>
+            Agent URI <span className="text-gray-400 font-400" style={{ fontWeight: 400 }}>(optional)</span>
+          </label>
           <input
             type="url"
-            placeholder="https:// or ipfs:// — ERC-8004 registration JSON"
+            placeholder="https:// or ipfs:// — ERC-8004 capability manifest"
             value={agentURI}
             onChange={(e) => setAgentURI(e.target.value)}
-            className="input"
+            className="w-full px-4 py-3 bg-gray-100 border-2 border-transparent rounded-lg text-[14px] text-gray-900 placeholder-gray-400 outline-none focus:border-blue-500 focus:bg-white transition-all"
           />
-          <p className="text-xs text-gray-600 mt-1.5">
-            Point to your agent&apos;s capability manifest. You can set this after registration too.
-          </p>
+          <p className="text-[12px] text-gray-400 mt-1">Optional — you can update this after registration.</p>
         </div>
 
-        {/* ERC-8004 info box */}
-        <div className="rounded-xl bg-arc-500/5 border border-arc-500/20 p-4 text-xs text-gray-400 space-y-1.5">
-          <p className="font-semibold text-arc-300">What gets minted:</p>
-          <ul className="list-disc list-inside space-y-1">
-            <li>An ERC-721 identity NFT (ERC-8004 compliant)</li>
-            <li>On-chain skills array &amp; reputation score (starts at 50)</li>
-            <li>Deterministic agentId: <code className="text-arc-300">keccak256(chainId, wallet, name)</code></li>
-            <li>Discoverable by any dApp on Arc</li>
+        {/* Info box */}
+        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Zap className="h-4 w-4 text-blue-500" />
+            <span className="text-[13px] font-600 text-blue-700" style={{ fontWeight: 600 }}>What gets minted</span>
+          </div>
+          <ul className="space-y-1 text-[13px] text-blue-700">
+            <li>· ERC-721 identity NFT (ERC-8004 compliant)</li>
+            <li>· On-chain skills array</li>
+            <li>· Starting reputation score = 50/100</li>
+            <li>· agentId = keccak256(chainId, wallet, name)</li>
+            <li>· Discoverable by any dApp on Arc</li>
           </ul>
         </div>
 
@@ -209,18 +248,15 @@ export default function RegisterPage() {
         <button
           onClick={handleRegister}
           disabled={loading || !isConnected || !name.trim() || skills.length === 0}
-          className="btn-primary w-full py-3 flex items-center justify-center gap-2"
+          className="btn-primary w-full py-3 justify-center text-[15px]"
         >
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              {isPending ? "Waiting for wallet…" : "Registering on-chain…"}
+              {isPending ? "Waiting for wallet..." : "Minting NFT on Arc..."}
             </>
           ) : (
-            <>
-              <Bot className="h-4 w-4" />
-              Register Agent (ERC-8004)
-            </>
+            "Register Agent (ERC-8004)"
           )}
         </button>
       </div>

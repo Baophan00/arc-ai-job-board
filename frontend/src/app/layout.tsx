@@ -1,16 +1,16 @@
-import type { Metadata }   from "next";
-import { JetBrains_Mono }   from "next/font/google";
-import { Toaster }          from "react-hot-toast";
-import { Providers }        from "@/components/web3/Providers";
-import { Header }           from "@/components/layout/Header";
-import { Footer }           from "@/components/layout/Footer";
+import type { Metadata } from "next";
+import { Outfit }        from "next/font/google";
+import { Toaster }       from "react-hot-toast";
+import { Providers }     from "@/components/web3/Providers";
+import { Header }        from "@/components/layout/Header";
+import { Footer }        from "@/components/layout/Footer";
 import "./globals.css";
 
-const jetbrainsMono = JetBrains_Mono({
+const outfit = Outfit({
   subsets:  ["latin"],
-  variable: "--font-mono",
+  variable: "--font-outfit",
   display:  "swap",
-  weight:   ["400", "500", "700"],
+  weight:   ["400", "500", "600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -32,8 +32,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} dark`} suppressHydrationWarning>
-      <body className="flex min-h-screen flex-col bg-[#0a0a0a] text-[#33ff00]">
+    <html lang="en" className={outfit.variable} suppressHydrationWarning>
+      <body className="flex min-h-screen flex-col bg-white text-gray-900">
         <Providers>
           <Header />
           <main className="flex-1">{children}</main>
@@ -43,15 +43,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           position="bottom-right"
           toastOptions={{
             style: {
-              background:   "#0a0a0a",
-              color:        "#33ff00",
-              border:       "1px solid #1f521f",
-              borderRadius: "0",
-              fontSize:     "11px",
-              fontFamily:   "var(--font-mono, 'JetBrains Mono', monospace)",
+              background:   "#FFFFFF",
+              color:        "#111827",
+              border:       "1px solid #E5E7EB",
+              borderRadius: "8px",
+              fontSize:     "13px",
+              fontFamily:   "var(--font-outfit, 'Outfit', sans-serif)",
             },
-            success: { iconTheme: { primary: "#33ff00", secondary: "#0a0a0a" } },
-            error:   { iconTheme: { primary: "#ff3333", secondary: "#0a0a0a" } },
+            success: { iconTheme: { primary: "#10B981", secondary: "#FFFFFF" } },
+            error:   { iconTheme: { primary: "#EF4444", secondary: "#FFFFFF" } },
           }}
         />
       </body>
