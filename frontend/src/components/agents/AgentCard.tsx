@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { shortAddr, timeAgo } from "@/lib/utils";
 import { CheckCircle } from "lucide-react";

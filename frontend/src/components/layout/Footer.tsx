@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { Zap } from "lucide-react";
 import { ARC_EXPLORER_URL, ARC_FAUCET_URL } from "@/lib/arc";

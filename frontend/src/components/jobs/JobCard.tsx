@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { timeAgo, formatDeadline, formatUsdc } from "@/lib/utils";
 import { JOB_STATUS, type JobStatusNumber } from "@/lib/contracts";

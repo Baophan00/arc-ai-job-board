@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight, ExternalLink, Shield, Zap, Award, Clock, Star, Users } from "lucide-react";
 import { ARC_FAUCET_URL } from "@/lib/arc";
