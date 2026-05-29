@@ -8,7 +8,16 @@ import { CONTRACT_ADDRESSES, JOB_REGISTRY_ABI, AGENT_REGISTRY_ABI } from "@/lib/
 import { cn, shortAddr } from "@/lib/utils";
 import { JobStatus } from "@/types";
 
-type NotifType = "approval_needed" | "assigned" | "completed" | "applicants";
+type NotifType =
+  | "approval_needed"
+  | "assigned"
+  | "completed"
+  | "applicants"
+  | "started"
+  | "revision"
+  | "disputed"
+  | "resolved"
+  | "cancelled";
 
 interface Notif {
   id:         string;
@@ -39,10 +48,15 @@ function saveDismissed(set: Set<string>) {
 const ZERO = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 const DOT_COLOR: Record<NotifType, string> = {
-  approval_needed: "#F59E0B",
-  assigned:        "#6C63FF",
-  completed:       "#38B2AC",
   applicants:      "#6C63FF",
+  assigned:        "#6C63FF",
+  started:         "#38B2AC",
+  revision:        "#F59E0B",
+  approval_needed: "#F59E0B",
+  completed:       "#38B2AC",
+  disputed:        "#EF4444",
+  resolved:        "#8B5CF6",
+  cancelled:       "#6B7280",
 };
 
 export function NotificationBell() {
@@ -145,18 +159,53 @@ export function NotificationBell() {
       const title  = job.title ? job.title : shortAddr(id, 6);
       const isEmp  = employerJobIds.includes(id);
       const isAgt  = agentJobIds.includes(id);
+      const isMyAgent = agentId && job.assignedAgent === agentId;
 
-      // Employer: deliverable waiting for approval → auto-clears when job moves to Completed
+      // ── Employer notifications ───────────────────────────────────────────
+
+      // Employer: agent started working → auto-clears when agent submits (→ Submitted)
+      if (isEmp && status === JobStatus.InProgress && !job.deliverableURI) {
+        allNotifs.push({ id: `started-${id}`, type: "started", label: "Agent started working", sub: title, href: `/jobs/${id}`, autoClears: true });
+      }
+      // Employer: deliverable submitted, needs review → auto-clears when approved (→ Completed)
       if (isEmp && status === JobStatus.Submitted) {
         allNotifs.push({ id: `submitted-${id}`, type: "approval_needed", label: "Review deliverable", sub: title, href: `/jobs/${id}`, autoClears: true });
       }
-      // Agent: just got assigned → auto-clears when agent starts job (status → InProgress)
-      if (isAgt && !isEmp && status === JobStatus.Assigned && agentId && job.assignedAgent === agentId) {
-        allNotifs.push({ id: `assigned-${id}`, type: "assigned", label: "You were assigned", sub: title, href: `/jobs/${id}`, autoClears: true });
+      // Employer: job disputed → manual dismiss
+      if (isEmp && status === JobStatus.Disputed) {
+        allNotifs.push({ id: `disputed-emp-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}`, autoClears: false });
       }
-      // Agent: payment released → stays Completed forever, needs manual dismiss
-      if (isAgt && status === JobStatus.Completed && agentId && job.assignedAgent === agentId) {
+      // Employer: dispute resolved → manual dismiss
+      if (isEmp && status === JobStatus.Resolved) {
+        allNotifs.push({ id: `resolved-emp-${id}`, type: "resolved", label: "Dispute resolved", sub: title, href: `/jobs/${id}`, autoClears: false });
+      }
+
+      // ── Agent notifications ──────────────────────────────────────────────
+
+      // Agent: just assigned → auto-clears when agent clicks Start Job (→ InProgress)
+      if (isAgt && !isEmp && status === JobStatus.Assigned && isMyAgent) {
+        allNotifs.push({ id: `assigned-${id}`, type: "assigned", label: "You were assigned to a job", sub: title, href: `/jobs/${id}`, autoClears: true });
+      }
+      // Agent: revision requested (InProgress + has deliverable = was submitted then sent back)
+      // → auto-clears when agent resubmits (→ Submitted)
+      if (isAgt && !isEmp && status === JobStatus.InProgress && isMyAgent && job.deliverableURI) {
+        allNotifs.push({ id: `revision-${id}`, type: "revision", label: "Revision requested — resubmit", sub: title, href: `/jobs/${id}`, autoClears: true });
+      }
+      // Agent: payment released → Completed is permanent, needs manual dismiss
+      if (isAgt && status === JobStatus.Completed && isMyAgent) {
         allNotifs.push({ id: `paid-${id}`, type: "completed", label: "Payment released 🎉", sub: title, href: `/jobs/${id}`, autoClears: false });
+      }
+      // Agent: job disputed → manual dismiss
+      if (isAgt && status === JobStatus.Disputed && isMyAgent) {
+        allNotifs.push({ id: `disputed-agt-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}`, autoClears: false });
+      }
+      // Agent: dispute resolved → manual dismiss
+      if (isAgt && status === JobStatus.Resolved && isMyAgent) {
+        allNotifs.push({ id: `resolved-agt-${id}`, type: "resolved", label: "Dispute resolved — check outcome", sub: title, href: `/jobs/${id}`, autoClears: false });
+      }
+      // Agent: job cancelled after being assigned → manual dismiss
+      if (isAgt && status === JobStatus.Cancelled && isMyAgent) {
+        allNotifs.push({ id: `cancelled-${id}`, type: "cancelled", label: "Job was cancelled", sub: title, href: `/jobs/${id}`, autoClears: false });
       }
     });
   }
