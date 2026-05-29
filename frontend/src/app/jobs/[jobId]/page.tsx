@@ -130,7 +130,9 @@ export default function JobDetailPage() {
   const [revisionNote,    setRevisionNote]     = useState("");
   const [rating,          setRating]           = useState(5);
   const [comment,         setComment]          = useState("");
+  // null = not yet fetched, "" = fetching / not found, string = feedback text
   const [revisionFeedback, setRevisionFeedback] = useState<string | null>(null);
+  const [revisionLoaded,   setRevisionLoaded]   = useState(false);
 
   // ── Read job from chain ──────────────────────────────────────────────────
   const { data: jobRaw, isLoading, refetch } = useReadContract({
@@ -205,8 +207,8 @@ export default function JobDetailPage() {
       applyForJob:       "Application submitted ✓",
     };
     toast.success(MSG[lastAction] ?? "Transaction confirmed ✓");
-    // Clear stale revision feedback when agent resubmits deliverable
-    if (lastAction === "submitDeliverable") setRevisionFeedback(null);
+    // Clear stale revision state when agent resubmits deliverable
+    if (lastAction === "submitDeliverable") { setRevisionFeedback(null); setRevisionLoaded(false); }
     refetch();
     refetchApplicants();
   }, [txSuccess]);  // eslint-disable-line
@@ -254,30 +256,63 @@ export default function JobDetailPage() {
   }, [revisionError]);  // eslint-disable-line
 
   // ── Fetch latest revision feedback from RevisionRequested event logs ────
+  // Banner is shown based on job STATE (InProgress + deliverable) — this is just best-effort
+  // to load the employer's specific message text.
   useEffect(() => {
-    if (!publicClient || !CONTRACT_ADDRESSES.jobRegistry) return;
     const job = jobRaw as any;
     if (!job) return;
     const status = Number(job.status ?? -1);
-    // Only fetch when job is InProgress and has a previous deliverable (= revision was requested)
-    if (status !== JobStatus.InProgress || !job.deliverableURI) return;
+    // Show banner whenever InProgress + previous deliverable exists (= revision was requested)
+    if (status !== JobStatus.InProgress || !job.deliverableURI) {
+      setRevisionFeedback(null);
+      setRevisionLoaded(false);
+      return;
+    }
 
-    publicClient.getLogs({
-      address:   CONTRACT_ADDRESSES.jobRegistry,
-      event:     REVISION_REQUESTED_EVENT,
-      fromBlock: 44_380_000n,   // Arc testnet deploy block
-      toBlock:   "latest",
-    }).then(logs => {
-      // Filter client-side — use toLowerCase() to avoid hex case mismatch
-      const jobLogs = logs.filter(
-        l => ((l.args as any)?.jobId as string)?.toLowerCase() === jobId.toLowerCase()
-      );
-      if (jobLogs.length === 0) return;
-      // Take the latest revision feedback
-      const last = jobLogs[jobLogs.length - 1];
-      const feedback = (last.args as any).feedback as string | undefined;
-      if (feedback) setRevisionFeedback(feedback);
-    }).catch(console.error);
+    if (!publicClient || !CONTRACT_ADDRESSES.jobRegistry) return;
+    setRevisionLoaded(false);
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Use dynamic fromBlock: last 200k blocks covers any recent revision
+        const latestBlock = await publicClient.getBlockNumber();
+        const fromBlock = latestBlock > 200_000n
+          ? latestBlock - 200_000n
+          : 44_380_000n;
+
+        const logs = await publicClient.getLogs({
+          address:   CONTRACT_ADDRESSES.jobRegistry,
+          event:     REVISION_REQUESTED_EVENT,
+          fromBlock,
+          toBlock:   "latest",
+        });
+
+        if (cancelled) return;
+
+        // Case-insensitive jobId match
+        const jobLogs = logs.filter(
+          l => ((l.args as any)?.jobId as string)?.toLowerCase() === jobId.toLowerCase()
+        );
+
+        if (jobLogs.length > 0) {
+          const feedback = (jobLogs[jobLogs.length - 1].args as any)?.feedback as string | undefined;
+          setRevisionFeedback(feedback ?? "");
+        } else {
+          setRevisionFeedback("");
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("getLogs failed:", err);
+          setRevisionFeedback(""); // failed — show banner without text
+        }
+      } finally {
+        if (!cancelled) setRevisionLoaded(true);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [publicClient, jobRaw, jobId]);   // eslint-disable-line
 
   // ── Loading ──────────────────────────────────────────────────────────────
@@ -536,8 +571,9 @@ export default function JobDetailPage() {
 
                         {jobStatus === JobStatus.InProgress && (
                           <div className="space-y-3">
-                            {/* Revision feedback banner — shown when employer requested changes */}
-                            {revisionFeedback && (
+                            {/* Revision banner — shown whenever InProgress + previous deliverable exists.
+                                The specific message text is loaded best-effort via getLogs. */}
+                            {(job as any).deliverableURI && (
                               <div
                                 className="rounded-2xl p-4"
                                 style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}
@@ -548,9 +584,19 @@ export default function JobDetailPage() {
                                     Revision requested by employer
                                   </span>
                                 </div>
-                                <p className="text-[13px] leading-relaxed" style={{ color: "#3D4852" }}>
-                                  {revisionFeedback}
-                                </p>
+                                {!revisionLoaded ? (
+                                  <p className="text-[13px] animate-pulse" style={{ color: "#8B95A5" }}>
+                                    Loading message…
+                                  </p>
+                                ) : revisionFeedback ? (
+                                  <p className="text-[13px] leading-relaxed" style={{ color: "#3D4852" }}>
+                                    {revisionFeedback}
+                                  </p>
+                                ) : (
+                                  <p className="text-[13px]" style={{ color: "#8B95A5" }}>
+                                    (No message left — contact employer directly)
+                                  </p>
+                                )}
                               </div>
                             )}
                             <input
@@ -572,7 +618,7 @@ export default function JobDetailPage() {
                               className="btn-primary w-full justify-center py-3"
                             >
                               <Send className="h-4 w-4" />
-                              {revisionFeedback ? "Resubmit Deliverable" : "Submit Deliverable"}
+                              {(job as any).deliverableURI ? "Resubmit Deliverable" : "Submit Deliverable"}
                             </button>
                           </div>
                         )}

@@ -5,7 +5,7 @@ import { Bell, X } from "lucide-react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import Link from "next/link";
 import { CONTRACT_ADDRESSES, JOB_REGISTRY_ABI, AGENT_REGISTRY_ABI } from "@/lib/contracts";
-import { cn, shortAddr } from "@/lib/utils";
+import { shortAddr } from "@/lib/utils";
 import { JobStatus } from "@/types";
 
 type NotifType =
@@ -20,13 +20,13 @@ type NotifType =
   | "cancelled";
 
 interface Notif {
-  id:         string;
-  type:       NotifType;
-  label:      string;
-  sub:        string;
-  href:       string;
-  /** true = goes away on its own when on-chain state changes, no need to dismiss */
-  autoClears: boolean;
+  id:   string;
+  type: NotifType;
+  label: string;
+  sub:   string;
+  href:  string;
+  /** Unix timestamp (job.createdAt) — used for newest-first sorting */
+  ts:   number;
 }
 
 // ── localStorage helpers for dismissed notification IDs ────────────────────
@@ -157,55 +157,44 @@ export function NotificationBell() {
       const id     = allIds[i];
       const status = Number(job.status ?? 0);
       const title  = job.title ? job.title : shortAddr(id, 6);
+      const ts     = Number(job.createdAt ?? 0);
       const isEmp  = employerJobIds.includes(id);
       const isAgt  = agentJobIds.includes(id);
       const isMyAgent = agentId && job.assignedAgent === agentId;
 
       // ── Employer notifications ───────────────────────────────────────────
-
-      // Employer: agent started working → auto-clears when agent submits (→ Submitted)
       if (isEmp && status === JobStatus.InProgress && !job.deliverableURI) {
-        allNotifs.push({ id: `started-${id}`, type: "started", label: "Agent started working", sub: title, href: `/jobs/${id}`, autoClears: true });
+        allNotifs.push({ id: `started-${id}`, type: "started", label: "Agent started working", sub: title, href: `/jobs/${id}`, ts });
       }
-      // Employer: deliverable submitted, needs review → auto-clears when approved (→ Completed)
       if (isEmp && status === JobStatus.Submitted) {
-        allNotifs.push({ id: `submitted-${id}`, type: "approval_needed", label: "Review deliverable", sub: title, href: `/jobs/${id}`, autoClears: true });
+        allNotifs.push({ id: `submitted-${id}`, type: "approval_needed", label: "Review deliverable", sub: title, href: `/jobs/${id}`, ts });
       }
-      // Employer: job disputed → manual dismiss
       if (isEmp && status === JobStatus.Disputed) {
-        allNotifs.push({ id: `disputed-emp-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}`, autoClears: false });
+        allNotifs.push({ id: `disputed-emp-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}`, ts });
       }
-      // Employer: dispute resolved → manual dismiss
       if (isEmp && status === JobStatus.Resolved) {
-        allNotifs.push({ id: `resolved-emp-${id}`, type: "resolved", label: "Dispute resolved", sub: title, href: `/jobs/${id}`, autoClears: false });
+        allNotifs.push({ id: `resolved-emp-${id}`, type: "resolved", label: "Dispute resolved", sub: title, href: `/jobs/${id}`, ts });
       }
 
       // ── Agent notifications ──────────────────────────────────────────────
-
-      // Agent: just assigned → auto-clears when agent clicks Start Job (→ InProgress)
       if (isAgt && !isEmp && status === JobStatus.Assigned && isMyAgent) {
-        allNotifs.push({ id: `assigned-${id}`, type: "assigned", label: "You were assigned to a job", sub: title, href: `/jobs/${id}`, autoClears: true });
+        allNotifs.push({ id: `assigned-${id}`, type: "assigned", label: "You were assigned to a job", sub: title, href: `/jobs/${id}`, ts });
       }
-      // Agent: revision requested (InProgress + has deliverable = was submitted then sent back)
-      // → auto-clears when agent resubmits (→ Submitted)
+      // Revision: InProgress + has deliverable = employer sent work back
       if (isAgt && !isEmp && status === JobStatus.InProgress && isMyAgent && job.deliverableURI) {
-        allNotifs.push({ id: `revision-${id}`, type: "revision", label: "Revision requested — resubmit", sub: title, href: `/jobs/${id}`, autoClears: true });
+        allNotifs.push({ id: `revision-${id}`, type: "revision", label: "Revision requested — open to read message", sub: title, href: `/jobs/${id}`, ts });
       }
-      // Agent: payment released → Completed is permanent, needs manual dismiss
       if (isAgt && status === JobStatus.Completed && isMyAgent) {
-        allNotifs.push({ id: `paid-${id}`, type: "completed", label: "Payment released 🎉", sub: title, href: `/jobs/${id}`, autoClears: false });
+        allNotifs.push({ id: `paid-${id}`, type: "completed", label: "Payment released 🎉", sub: title, href: `/jobs/${id}`, ts });
       }
-      // Agent: job disputed → manual dismiss
       if (isAgt && status === JobStatus.Disputed && isMyAgent) {
-        allNotifs.push({ id: `disputed-agt-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}`, autoClears: false });
+        allNotifs.push({ id: `disputed-agt-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}`, ts });
       }
-      // Agent: dispute resolved → manual dismiss
       if (isAgt && status === JobStatus.Resolved && isMyAgent) {
-        allNotifs.push({ id: `resolved-agt-${id}`, type: "resolved", label: "Dispute resolved — check outcome", sub: title, href: `/jobs/${id}`, autoClears: false });
+        allNotifs.push({ id: `resolved-agt-${id}`, type: "resolved", label: "Dispute resolved — check outcome", sub: title, href: `/jobs/${id}`, ts });
       }
-      // Agent: job cancelled after being assigned → manual dismiss
       if (isAgt && status === JobStatus.Cancelled && isMyAgent) {
-        allNotifs.push({ id: `cancelled-${id}`, type: "cancelled", label: "Job was cancelled", sub: title, href: `/jobs/${id}`, autoClears: false });
+        allNotifs.push({ id: `cancelled-${id}`, type: "cancelled", label: "Job was cancelled", sub: title, href: `/jobs/${id}`, ts });
       }
     });
   }
@@ -220,14 +209,17 @@ export function NotificationBell() {
       const jobR   = jobsData?.[jobIdx];
       const title  = (jobR?.status === "success" && (jobR.result as any)?.title)
         ? (jobR.result as any).title : shortAddr(jobId, 6);
+      const ts     = jobR?.status === "success" ? Number((jobR.result as any)?.createdAt ?? 0) : 0;
       // Include count in ID → re-triggers when new applicant arrives after dismissal
-      allNotifs.push({ id: `applicants-${jobId}-${ids.length}`, type: "applicants", label: `${ids.length} applicant${ids.length > 1 ? "s" : ""} waiting`, sub: title, href: `/jobs/${jobId}`, autoClears: false });
+      allNotifs.push({ id: `applicants-${jobId}-${ids.length}`, type: "applicants", label: `${ids.length} applicant${ids.length > 1 ? "s" : ""} waiting`, sub: title, href: `/jobs/${jobId}`, ts });
     });
   }
 
-  // Filter out manually dismissed notifications
-  // (auto-clearing ones are not stored in dismissed — they vanish on their own)
-  const notifs = allNotifs.filter(n => n.autoClears || !dismissed.has(n.id));
+  // Sort: newest first (highest createdAt first)
+  allNotifs.sort((a, b) => b.ts - a.ts);
+
+  // Hide dismissed notifications — clicking a notification OR pressing X both dismiss it
+  const notifs = allNotifs.filter(n => !dismissed.has(n.id));
 
   if (!address) return null;
 
@@ -277,7 +269,7 @@ export function NotificationBell() {
             <div className="flex items-center gap-2">
               {count > 0 && (
                 <button
-                  onClick={() => dismissAll(notifs.filter(n => !n.autoClears).map(n => n.id))}
+                  onClick={() => dismissAll(notifs.map(n => n.id))}
                   className="text-[11px] cursor-pointer border-0 bg-transparent transition-colors"
                   style={{ color: "#8B95A5" }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
@@ -322,7 +314,7 @@ export function NotificationBell() {
                   />
                   <Link
                     href={n.href}
-                    onClick={() => { if (!n.autoClears) dismiss(n.id); setOpen(false); }}
+                    onClick={() => { dismiss(n.id); setOpen(false); }}
                     className="flex-1 min-w-0 hover:no-underline"
                   >
                     <div
@@ -335,19 +327,17 @@ export function NotificationBell() {
                     </div>
                     <div className="text-[12px] truncate mt-0.5" style={{ color: "#6B7280" }}>{n.sub}</div>
                   </Link>
-                  {/* Dismiss button — only for non-auto-clearing notifications */}
-                  {!n.autoClears && (
-                    <button
-                      onClick={e => { e.stopPropagation(); dismiss(n.id); }}
-                      className="shrink-0 mt-0.5 cursor-pointer border-0 bg-transparent p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                      style={{ color: "#8B95A5" }}
-                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#EF4444"}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
-                      title="Dismiss"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
+                  {/* X button — dismiss without navigating, shown for all notifications */}
+                  <button
+                    onClick={e => { e.stopPropagation(); dismiss(n.id); }}
+                    className="shrink-0 mt-0.5 cursor-pointer border-0 bg-transparent p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ color: "#8B95A5" }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#EF4444"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+                    title="Dismiss"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               ))}
             </div>
