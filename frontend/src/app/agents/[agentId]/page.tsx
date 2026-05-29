@@ -1,9 +1,11 @@
 "use client";
 
+import { useState }       from "react";
 import { useParams }      from "next/navigation";
 import Link               from "next/link";
-import { ExternalLink, ArrowLeft, CheckCircle, Star, Award, Briefcase } from "lucide-react";
-import { useReadContract } from "wagmi";
+import { ExternalLink, ArrowLeft, CheckCircle, Star, Award, Briefcase, Pencil, Loader2, X } from "lucide-react";
+import { useReadContract, useWriteContract, useWaitForTransactionReceipt, useAccount } from "wagmi";
+import toast              from "react-hot-toast";
 import { CONTRACT_ADDRESSES, AGENT_REGISTRY_ABI, JOB_REGISTRY_ABI } from "@/lib/contracts";
 import { shortAddr, timeAgo, reputationLabel } from "@/lib/utils";
 import { ARC_EXPLORER_URL } from "@/lib/arc";
@@ -39,6 +41,30 @@ function reputationBadge(score: number): { label: string; color: string } {
 export default function AgentProfilePage() {
   const params  = useParams<{ agentId: string }>();
   const agentId = params.agentId as `0x${string}`;
+
+  const { address } = useAccount();
+  const [editingURI, setEditingURI] = useState(false);
+  const [newURI,     setNewURI]     = useState("");
+
+  const { writeContract, data: txHash, isPending } = useWriteContract();
+  const { isLoading: isMining, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const saving = isPending || isMining;
+
+  if (isSuccess && editingURI) {
+    toast.success("Agent URI updated!");
+    setEditingURI(false);
+    setNewURI("");
+  }
+
+  const handleSaveURI = () => {
+    if (!newURI.trim()) return toast.error("URI cannot be empty");
+    writeContract({
+      address:      CONTRACT_ADDRESSES.agentRegistry,
+      abi:          AGENT_REGISTRY_ABI,
+      functionName: "setAgentURI",
+      args:         [agentId, newURI.trim()],
+    });
+  };
 
   const { data: agentRaw, isLoading } = useReadContract({
     address:      CONTRACT_ADDRESSES.agentRegistry,
@@ -98,6 +124,7 @@ export default function AgentProfilePage() {
   const score    = Number(agent.reputationScore ?? 0n);
   const jobIds   = (agentJobIds as `0x${string}`[] | undefined) ?? [];
   const repBadge = reputationBadge(score);
+  const isOwner  = !!address && address.toLowerCase() === agent.wallet?.toLowerCase();
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-10" style={{ background: "#E0E5EC" }}>
@@ -240,6 +267,57 @@ export default function AgentProfilePage() {
             <div className="mt-3 text-[12px]" style={{ color: "#8B95A5" }}>
               Registered {timeAgo(agent.createdAt)}
             </div>
+
+            {/* ── Edit Agent URI (owner only) ───────────────────────────── */}
+            {isOwner && (
+              <div
+                className="mt-4 pt-4"
+                style={{ borderTop: "1px solid rgba(163,177,198,0.35)" }}
+              >
+                {!editingURI ? (
+                  <button
+                    onClick={() => { setEditingURI(true); setNewURI(agent.agentURI ?? ""); }}
+                    className="flex items-center gap-2 text-[13px] cursor-pointer border-0 bg-transparent p-0 transition-colors"
+                    style={{ color: "#6B7280" }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#6B7280"}
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Edit Agent URI
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-[12px]" style={{ fontWeight: 600, color: "#3D4852" }}>Agent URI</div>
+                    <input
+                      type="url"
+                      placeholder="https:// or ipfs://"
+                      value={newURI}
+                      onChange={e => setNewURI(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl text-[12px] outline-none"
+                      style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSaveURI}
+                        disabled={saving}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] text-white border-0 cursor-pointer transition-all"
+                        style={{ fontWeight: 600, background: "#6C63FF", boxShadow: NEU_SM, opacity: saving ? 0.7 : 1 }}
+                      >
+                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                        {isPending ? "Confirm..." : isMining ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        onClick={() => { setEditingURI(false); setNewURI(""); }}
+                        disabled={saving}
+                        className="p-2 rounded-xl border-0 cursor-pointer transition-all"
+                        style={{ background: "#E0E5EC", boxShadow: NEU_SM, color: "#6B7280" }}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
