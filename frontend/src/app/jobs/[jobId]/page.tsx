@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useParams }    from "next/navigation";
 import Link             from "next/link";
-import { Loader2, Send, RotateCcw, CheckCircle2, ExternalLink, ArrowLeft, Star, Shield, Clock, DollarSign, ChevronRight } from "lucide-react";
-import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { Loader2, Send, RotateCcw, CheckCircle2, ExternalLink, ArrowLeft, Star, Shield, Clock, DollarSign, ChevronRight, MessageSquare } from "lucide-react";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from "wagmi";
+import { parseAbiItem, type AbiEvent } from "viem";
 import toast            from "react-hot-toast";
 import { CONTRACT_ADDRESSES, JOB_REGISTRY_ABI, AGENT_REGISTRY_ABI } from "@/lib/contracts";
 import { formatUsdc, formatDeadline, timeAgo, shortAddr } from "@/lib/utils";
@@ -114,16 +115,22 @@ function ApplicantRow({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const REVISION_REQUESTED_EVENT = parseAbiItem(
+  "event RevisionRequested(bytes32 indexed jobId, string feedback)"
+) as AbiEvent;
+
 export default function JobDetailPage() {
   const params = useParams<{ jobId: string }>();
   const jobId  = params.jobId as `0x${string}`;
 
   const { address, isConnected } = useAccount();
+  const publicClient = usePublicClient();
 
-  const [deliverableURI, setDeliverableURI] = useState("");
-  const [revisionNote,   setRevisionNote]   = useState("");
-  const [rating,         setRating]         = useState(5);
-  const [comment,        setComment]        = useState("");
+  const [deliverableURI,  setDeliverableURI]  = useState("");
+  const [revisionNote,    setRevisionNote]     = useState("");
+  const [rating,          setRating]           = useState(5);
+  const [comment,         setComment]          = useState("");
+  const [revisionFeedback, setRevisionFeedback] = useState<string | null>(null);
 
   // ── Read job from chain ──────────────────────────────────────────────────
   const { data: jobRaw, isLoading, refetch } = useReadContract({
@@ -203,6 +210,30 @@ export default function JobDetailPage() {
       toast.error(msg.slice(0, 80));
     }
   }, [txError]);  // eslint-disable-line
+
+  // ── Fetch latest revision feedback from RevisionRequested event logs ────
+  useEffect(() => {
+    if (!publicClient || !CONTRACT_ADDRESSES.jobRegistry) return;
+    const job = jobRaw as any;
+    if (!job) return;
+    const status = Number(job.status ?? -1);
+    // Only fetch when job is InProgress and has a previous deliverable (= revision was requested)
+    if (status !== JobStatus.InProgress || !job.deliverableURI) return;
+
+    publicClient.getLogs({
+      address:   CONTRACT_ADDRESSES.jobRegistry,
+      event:     REVISION_REQUESTED_EVENT,
+      args:      { jobId } as any,
+      fromBlock: 0n,
+      toBlock:   "latest",
+    }).then(logs => {
+      if (logs.length === 0) return;
+      // Take the latest revision feedback
+      const last = logs[logs.length - 1];
+      const feedback = (last.args as any).feedback as string | undefined;
+      if (feedback) setRevisionFeedback(feedback);
+    }).catch(console.error);
+  }, [publicClient, jobRaw, jobId]);   // eslint-disable-line
 
   // ── Loading ──────────────────────────────────────────────────────────────
   if (isLoading) {
@@ -460,6 +491,23 @@ export default function JobDetailPage() {
 
                         {jobStatus === JobStatus.InProgress && (
                           <div className="space-y-3">
+                            {/* Revision feedback banner — shown when employer requested changes */}
+                            {revisionFeedback && (
+                              <div
+                                className="rounded-2xl p-4"
+                                style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}
+                              >
+                                <div className="flex items-center gap-2 mb-2">
+                                  <MessageSquare className="h-4 w-4 shrink-0" style={{ color: "#F59E0B" }} />
+                                  <span className="text-[12px]" style={{ fontWeight: 700, color: "#F59E0B" }}>
+                                    Revision requested by employer
+                                  </span>
+                                </div>
+                                <p className="text-[13px] leading-relaxed" style={{ color: "#3D4852" }}>
+                                  {revisionFeedback}
+                                </p>
+                              </div>
+                            )}
                             <input
                               type="url"
                               placeholder="ipfs:// or https:// — your deliverable link"
@@ -478,7 +526,8 @@ export default function JobDetailPage() {
                               disabled={loading || !deliverableURI}
                               className="btn-primary w-full justify-center py-3"
                             >
-                              <Send className="h-4 w-4" /> Submit Deliverable
+                              <Send className="h-4 w-4" />
+                              {revisionFeedback ? "Resubmit Deliverable" : "Submit Deliverable"}
                             </button>
                           </div>
                         )}
