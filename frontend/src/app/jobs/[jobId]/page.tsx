@@ -521,8 +521,105 @@ export default function JobDetailPage() {
             </p>
           </div>
 
-          {/* Deliverable — visible only to employer + assigned agent */}
-          {job.deliverableURI && (isEmployer || isAssignedAgent) && (
+          {/* ── Completion proof card — shown to EVERYONE when job is done ──────── */}
+          {jobStatus === JobStatus.Completed && (job as any).completedAt > 0n && (
+            <div
+              className="rounded-[32px] p-5 space-y-3"
+              style={{ background: "#E0E5EC", boxShadow: NEU }}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 shrink-0" style={{ color: "#38B2AC" }} />
+                <span
+                  className="text-[14px]"
+                  style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 700, color: "#38B2AC" }}
+                >
+                  Job Completed
+                </span>
+              </div>
+
+              {/* Stats row — public */}
+              <div className="grid grid-cols-2 gap-3">
+                <div
+                  className="rounded-2xl px-4 py-3"
+                  style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                >
+                  <div className="text-[11px] mb-0.5" style={{ color: "#8B95A5" }}>Completed on</div>
+                  <div className="text-[13px]" style={{ fontWeight: 600, color: "#3D4852" }}>
+                    {new Date(Number((job as any).completedAt) * 1000).toLocaleDateString("en-US", {
+                      month: "short", day: "numeric", year: "numeric",
+                    })}
+                  </div>
+                </div>
+                <div
+                  className="rounded-2xl px-4 py-3"
+                  style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                >
+                  <div className="text-[11px] mb-0.5" style={{ color: "#8B95A5" }}>Agent paid</div>
+                  <div className="text-[13px]" style={{ fontWeight: 600, color: "#38B2AC" }}>
+                    {formatUsdc(BigInt((job as any).budget) - BigInt((job as any).platformFee))} USDC
+                  </div>
+                </div>
+              </div>
+
+              {/* Deliverable link — private: employer + assigned agent only */}
+              {job.deliverableURI && (isEmployer || isAssignedAgent) && (
+                <div
+                  className="rounded-2xl p-3"
+                  style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                >
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <ExternalLink className="h-3.5 w-3.5 shrink-0" style={{ color: "#6C63FF" }} />
+                    <span className="text-[11px]" style={{ fontWeight: 600, color: "#6C63FF" }}>
+                      Delivered work
+                    </span>
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full ml-auto"
+                      style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM, color: "#8B95A5" }}
+                    >
+                      🔒 Private
+                    </span>
+                  </div>
+                  <a
+                    href={job.deliverableURI}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[12px] break-all hover:no-underline transition-colors"
+                    style={{ color: "#6C63FF" }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#8B5CF6"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+                  >
+                    {job.deliverableURI}
+                  </a>
+                </div>
+              )}
+
+              {/* For third-party viewers — confirm work was delivered, hide link */}
+              {job.deliverableURI && !isEmployer && !isAssignedAgent && (
+                <div className="flex items-center gap-2 text-[12px]" style={{ color: "#8B95A5" }}>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                  Deliverable on record · link visible to contracting parties only
+                </div>
+              )}
+
+              {/* On-chain proof link — public */}
+              <a
+                href={`${ARC_EXPLORER_URL}/address/${CONTRACT_ADDRESSES.jobRegistry}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-[11px] hover:no-underline transition-colors"
+                style={{ color: "#8B95A5" }}
+                onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+              >
+                <Shield className="h-3.5 w-3.5 shrink-0" />
+                Verified on-chain · view contract ↗
+              </a>
+            </div>
+          )}
+
+          {/* Deliverable card during active work (Submitted / InProgress revision) */}
+          {job.deliverableURI && jobStatus !== JobStatus.Completed && (isEmployer || isAssignedAgent) && (
             <div className="rounded-[24px] p-4" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
               <div className="flex items-center gap-2 mb-2">
                 <ExternalLink className="h-4 w-4" style={{ color: "#6C63FF" }} />
@@ -539,8 +636,8 @@ export default function JobDetailPage() {
               </a>
             </div>
           )}
-          {/* Show "work submitted" notice to other viewers without revealing the link */}
-          {job.deliverableURI && !isEmployer && !isAssignedAgent && (
+          {/* Show "work submitted" notice to others during active work */}
+          {job.deliverableURI && jobStatus !== JobStatus.Completed && !isEmployer && !isAssignedAgent && (
             <div className="rounded-[24px] p-4" style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}>
               <div className="flex items-center gap-2">
                 <ExternalLink className="h-4 w-4" style={{ color: "#8B95A5" }} />
