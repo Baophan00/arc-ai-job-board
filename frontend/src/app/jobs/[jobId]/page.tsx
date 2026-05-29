@@ -602,19 +602,33 @@ export default function JobDetailPage() {
                 </div>
               )}
 
-              {/* On-chain proof link — public */}
-              <a
-                href={`${ARC_EXPLORER_URL}/address/${CONTRACT_ADDRESSES.jobRegistry}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[11px] hover:no-underline transition-colors"
-                style={{ color: "#8B95A5" }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+              {/* On-chain proof — job ID is the cryptographic proof this record exists on Arc */}
+              <div
+                className="rounded-2xl px-3 py-2.5 flex items-center gap-2"
+                style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
               >
-                <Shield className="h-3.5 w-3.5 shrink-0" />
-                Verified on-chain · view contract ↗
-              </a>
+                <Shield className="h-3.5 w-3.5 shrink-0" style={{ color: "#38B2AC" }} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] mb-0.5" style={{ color: "#8B95A5" }}>
+                    On-chain Job ID · data verified from Arc Testnet
+                  </div>
+                  <div className="font-mono text-[11px] truncate" style={{ color: "#6B7280" }}>
+                    {String(job.jobId)}
+                  </div>
+                </div>
+                <a
+                  href={`${ARC_EXPLORER_URL}/address/${CONTRACT_ADDRESSES.jobRegistry}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-[10px] hover:no-underline transition-colors"
+                  style={{ color: "#8B95A5" }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+                  title="View contract on ArcScan"
+                >
+                  ↗
+                </a>
+              </div>
             </div>
           )}
 
