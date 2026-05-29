@@ -138,6 +138,7 @@ export default function JobDetailPage() {
     abi:          JOB_REGISTRY_ABI,
     functionName: "getJob",
     args:         [jobId],
+    query:        { refetchInterval: 15_000 },   // both parties see status updates live
   });
 
   // ── Read applicants ──────────────────────────────────────────────────────
@@ -177,9 +178,20 @@ export default function JobDetailPage() {
 
   const [lastAction, setLastAction] = useState("");
 
+  // ── General write hook (assign, start, submit, cancel, apply) ────────────
   const { writeContract, data: txHash, isPending, isError: txError, error: txErr } = useWriteContract();
   const { isLoading: isMining, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
   const loading = isPending || isMining;
+
+  // ── Independent hook: Approve & Release Payment ──────────────────────────
+  const { writeContract: writeApprove, data: approveTxHash, isPending: approvePending, isError: approveError, error: approveErr } = useWriteContract();
+  const { isLoading: approveMining, isSuccess: approveSuccess } = useWaitForTransactionReceipt({ hash: approveTxHash });
+  const approveLoading = approvePending || approveMining;
+
+  // ── Independent hook: Request Revision ───────────────────────────────────
+  const { writeContract: writeRevision, data: revisionTxHash, isPending: revisionPending, isError: revisionError, error: revisionErr } = useWriteContract();
+  const { isLoading: revisionMining, isSuccess: revisionSuccess } = useWaitForTransactionReceipt({ hash: revisionTxHash });
+  const revisionLoading = revisionPending || revisionMining;
 
   useEffect(() => {
     if (!txSuccess || !lastAction) return;
@@ -213,6 +225,34 @@ export default function JobDetailPage() {
     }
   }, [txError]);  // eslint-disable-line
 
+  // ── Approve success / error ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!approveSuccess) return;
+    toast.success("Payment released — job complete! ✓");
+    refetch();
+  }, [approveSuccess]);  // eslint-disable-line
+
+  useEffect(() => {
+    if (!approveError || !approveErr) return;
+    const msg = approveErr.message ?? "";
+    if (msg.includes("User rejected") || msg.includes("user rejected")) toast.error("Transaction cancelled");
+    else toast.error(msg.slice(0, 80));
+  }, [approveError]);  // eslint-disable-line
+
+  // ── Request Revision success / error ────────────────────────────────────────
+  useEffect(() => {
+    if (!revisionSuccess) return;
+    toast.success("Revision requested — agent has been notified");
+    refetch();
+  }, [revisionSuccess]);  // eslint-disable-line
+
+  useEffect(() => {
+    if (!revisionError || !revisionErr) return;
+    const msg = revisionErr.message ?? "";
+    if (msg.includes("User rejected") || msg.includes("user rejected")) toast.error("Transaction cancelled");
+    else toast.error(msg.slice(0, 80));
+  }, [revisionError]);  // eslint-disable-line
+
   // ── Fetch latest revision feedback from RevisionRequested event logs ────
   useEffect(() => {
     if (!publicClient || !CONTRACT_ADDRESSES.jobRegistry) return;
@@ -228,8 +268,10 @@ export default function JobDetailPage() {
       fromBlock: 44_380_000n,   // Arc testnet deploy block
       toBlock:   "latest",
     }).then(logs => {
-      // Filter client-side — more reliable on Arc testnet than indexed arg filter
-      const jobLogs = logs.filter(l => (l.args as any)?.jobId === jobId);
+      // Filter client-side — use toLowerCase() to avoid hex case mismatch
+      const jobLogs = logs.filter(
+        l => ((l.args as any)?.jobId as string)?.toLowerCase() === jobId.toLowerCase()
+      );
       if (jobLogs.length === 0) return;
       // Take the latest revision feedback
       const last = jobLogs[jobLogs.length - 1];
@@ -691,40 +733,61 @@ export default function JobDetailPage() {
                       onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
                     />
 
+                    {/* Approve — independent hook, doesn't affect revision button */}
                     <button
-                      onClick={() => tx("approveWork", [job.jobId, rating, comment])}
-                      disabled={loading}
+                      onClick={() => writeApprove({
+                        address:      CONTRACT_ADDRESSES.jobRegistry,
+                        abi:          JOB_REGISTRY_ABI,
+                        functionName: "approveWork",
+                        args:         [job.jobId, rating, comment],
+                      })}
+                      disabled={approveLoading || revisionLoading}
                       className="btn-primary w-full justify-center py-3"
                     >
-                      <CheckCircle2 className="h-4 w-4" /> Approve &amp; Release Payment
+                      {approveLoading
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <CheckCircle2 className="h-4 w-4" />}
+                      Approve &amp; Release Payment
                     </button>
 
                     <div
                       className="pt-4 space-y-3"
                       style={{ borderTop: "1px solid rgba(163,177,198,0.35)" }}
                     >
+                      <label className="block text-[12px]" style={{ fontWeight: 600, color: "#8B95A5" }}>
+                        Message to agent — describe what needs changing
+                      </label>
                       <textarea
-                        placeholder="Request revision — describe what needs changing..."
+                        placeholder="e.g. Please add more detail to section 2, and fix the formatting..."
                         value={revisionNote}
                         onChange={(e) => setRevisionNote(e.target.value)}
-                        rows={2}
+                        rows={3}
                         className="w-full px-4 py-3 rounded-2xl text-[14px] outline-none transition-all duration-300 resize-none"
                         style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
                         onFocus={e => (e.currentTarget as HTMLElement).style.boxShadow = "inset 10px 10px 20px rgb(163,177,198,0.7), inset -10px -10px 20px rgba(255,255,255,0.6)"}
                         onBlur={e  => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
                       />
+                      {/* Request Revision — independent hook, doesn't affect approve button */}
                       <button
                         onClick={() => {
-                          if (!revisionNote) return toast.error("Describe what needs changing");
-                          tx("requestRevision", [job.jobId, revisionNote]);
+                          if (!revisionNote.trim()) return toast.error("Describe what needs changing");
+                          writeRevision({
+                            address:      CONTRACT_ADDRESSES.jobRegistry,
+                            abi:          JOB_REGISTRY_ABI,
+                            functionName: "requestRevision",
+                            args:         [job.jobId, revisionNote],
+                          });
                         }}
-                        disabled={loading}
+                        disabled={revisionLoading || approveLoading}
                         className="w-full py-2.5 text-[13px] rounded-2xl cursor-pointer border-0 transition-all duration-300 flex items-center justify-center gap-2"
                         style={{ fontWeight: 600, color: "#F59E0B", background: "#E0E5EC", boxShadow: NEU_SM }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.boxShadow = NEU_SM}
+                        onMouseEnter={e => !revisionLoading && ((e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET)}
+                        onMouseLeave={e => !revisionLoading && ((e.currentTarget as HTMLElement).style.boxShadow = NEU_SM)}
                       >
-                        <RotateCcw className="h-4 w-4" /> Request Revision
+                        {revisionLoading
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <RotateCcw className="h-4 w-4" />}
+                        Request Revision
                       </button>
                     </div>
                   </div>
