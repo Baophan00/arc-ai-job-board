@@ -8,42 +8,46 @@ import { CONTRACT_ADDRESSES, JOB_REGISTRY_ABI, AGENT_REGISTRY_ABI } from "@/lib/
 import { shortAddr } from "@/lib/utils";
 import { JobStatus } from "@/types";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type NotifType =
-  | "approval_needed"
-  | "assigned"
-  | "completed"
-  | "applicants"
-  | "started"
-  | "revision"
-  | "disputed"
-  | "resolved"
-  | "cancelled";
+  | "approval_needed" | "assigned" | "completed" | "applicants"
+  | "started" | "revision" | "disputed" | "resolved" | "cancelled";
 
 interface Notif {
-  id:   string;
-  type: NotifType;
+  id:    string;
+  type:  NotifType;
   label: string;
   sub:   string;
   href:  string;
-  /** Unix timestamp (job.createdAt) — used for newest-first sorting */
-  ts:   number;
 }
 
-// ── localStorage helpers for dismissed notification IDs ────────────────────
-const STORAGE_KEY = "agentcywork:dismissed_notifs:v1";
-
-function loadDismissed(): Set<string> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
-  } catch { return new Set(); }
+interface StoredNotif extends Notif {
+  read:    boolean; // user has seen it — stays in list, no longer counted in badge
+  addedAt: number;  // Date.now() when first recorded
 }
 
-function saveDismissed(set: Set<string>) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
-  } catch { /* storage full / SSR */ }
+// ─── localStorage helpers (per-wallet) ────────────────────────────────────────
+
+const NOTIFS_KEY  = (a: string) => `agentcywork:notifs:v3:${a.toLowerCase()}`;
+const CLEARED_KEY = (a: string) => `agentcywork:cleared:v3:${a.toLowerCase()}`;
+
+function loadNotifs(addr: string): StoredNotif[] {
+  try { return JSON.parse(localStorage.getItem(NOTIFS_KEY(addr)) ?? "[]"); }
+  catch { return []; }
 }
+function saveNotifs(addr: string, v: StoredNotif[]) {
+  try { localStorage.setItem(NOTIFS_KEY(addr), JSON.stringify(v)); } catch {}
+}
+function loadCleared(addr: string): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(CLEARED_KEY(addr)) ?? "[]") as string[]); }
+  catch { return new Set(); }
+}
+function saveCleared(addr: string, v: Set<string>) {
+  try { localStorage.setItem(CLEARED_KEY(addr), JSON.stringify([...v])); } catch {}
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const ZERO = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -59,15 +63,26 @@ const DOT_COLOR: Record<NotifType, string> = {
   cancelled:       "#6B7280",
 };
 
+// Short suffix from a URI — makes notification IDs unique per submission round
+const suf = (s?: string) => (s && s.length > 6 ? s.slice(-6) : s ?? "x");
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function NotificationBell() {
   const { address } = useAccount();
-  const [open,      setOpen]      = useState(false);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [open,    setOpen]    = useState(false);
+  const [stored,  setStored]  = useState<StoredNotif[]>([]);
+  const [cleared, setCleared] = useState<Set<string>>(new Set());
   const ref = useRef<HTMLDivElement>(null);
 
-  // Load dismissed IDs from localStorage on mount
-  useEffect(() => { setDismissed(loadDismissed()); }, []);
+  // Load from localStorage whenever wallet changes
+  useEffect(() => {
+    if (!address) { setStored([]); setCleared(new Set()); return; }
+    setStored(loadNotifs(address));
+    setCleared(loadCleared(address));
+  }, [address]);
 
+  // Close panel on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -76,26 +91,14 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const dismiss = (id: string) => {
-    const next = new Set(dismissed);
-    next.add(id);
-    setDismissed(next);
-    saveDismissed(next);
-  };
-
-  const dismissAll = (ids: string[]) => {
-    const next = new Set(dismissed);
-    ids.forEach(id => next.add(id));
-    setDismissed(next);
-    saveDismissed(next);
-  };
+  // ── Chain reads ──────────────────────────────────────────────────────────────
 
   const { data: empIds } = useReadContract({
     address:      CONTRACT_ADDRESSES.jobRegistry,
     abi:          JOB_REGISTRY_ABI,
     functionName: "getEmployerJobs",
     args:         address ? [address] : undefined,
-    query:        { enabled: !!address, refetchInterval: 20_000 },
+    query:        { enabled: !!address, refetchInterval: 15_000 },
   });
 
   const { data: agentRaw } = useReadContract({
@@ -103,7 +106,7 @@ export function NotificationBell() {
     abi:          AGENT_REGISTRY_ABI,
     functionName: "getAgentByWallet",
     args:         address ? [address] : undefined,
-    query:        { enabled: !!address },
+    query:        { enabled: !!address, refetchInterval: 30_000 },
   });
   const agent    = agentRaw as any;
   const hasAgent = !!agent && agent.agentId !== ZERO;
@@ -114,7 +117,7 @@ export function NotificationBell() {
     abi:          JOB_REGISTRY_ABI,
     functionName: "getAgentJobs",
     args:         agentId ? [agentId] : undefined,
-    query:        { enabled: !!agentId, refetchInterval: 20_000 },
+    query:        { enabled: !!agentId, refetchInterval: 15_000 },
   });
 
   const employerJobIds = (empIds as `0x${string}`[] | undefined) ?? [];
@@ -122,13 +125,13 @@ export function NotificationBell() {
   const allIds         = [...new Set([...employerJobIds, ...agentJobIds])];
 
   const { data: jobsData } = useReadContracts({
-    contracts: allIds.map((id) => ({
+    contracts: allIds.map(id => ({
       address:      CONTRACT_ADDRESSES.jobRegistry,
       abi:          JOB_REGISTRY_ABI,
       functionName: "getJob",
       args:         [id],
     })),
-    query: { enabled: allIds.length > 0, refetchInterval: 20_000 },
+    query: { enabled: allIds.length > 0, refetchInterval: 15_000 },
   });
 
   const openEmpIds = allIds.filter((id, i) => {
@@ -139,91 +142,143 @@ export function NotificationBell() {
   });
 
   const { data: applicantsData } = useReadContracts({
-    contracts: openEmpIds.map((id) => ({
+    contracts: openEmpIds.map(id => ({
       address:      CONTRACT_ADDRESSES.jobRegistry,
       abi:          JOB_REGISTRY_ABI,
       functionName: "getApplications",
       args:         [id],
     })),
-    query: { enabled: openEmpIds.length > 0, refetchInterval: 20_000 },
+    query: { enabled: openEmpIds.length > 0, refetchInterval: 15_000 },
   });
 
-  const allNotifs: Notif[] = [];
+  // ── Build fresh notifications from chain data, merge into localStorage ────────
+  // New IDs are added once and NEVER removed automatically — only user can clear them.
+  // This ensures notifications are never "missed" due to state transitions.
 
-  if (jobsData) {
-    jobsData.forEach((r, i) => {
-      if (r.status !== "success" || !r.result) return;
-      const job    = r.result as any;
-      const id     = allIds[i];
-      const status = Number(job.status ?? 0);
-      const title  = job.title ? job.title : shortAddr(id, 6);
-      const ts     = Number(job.createdAt ?? 0);
-      const isEmp  = employerJobIds.includes(id);
-      const isAgt  = agentJobIds.includes(id);
-      const isMyAgent = agentId && job.assignedAgent === agentId;
+  useEffect(() => {
+    if (!address) return;
+    const fresh: Notif[] = [];
 
-      // ── Employer notifications ───────────────────────────────────────────
-      if (isEmp && status === JobStatus.InProgress && !job.deliverableURI) {
-        allNotifs.push({ id: `started-${id}`, type: "started", label: "Agent started working", sub: title, href: `/jobs/${id}`, ts });
-      }
-      if (isEmp && status === JobStatus.Submitted) {
-        allNotifs.push({ id: `submitted-${id}`, type: "approval_needed", label: "Review deliverable", sub: title, href: `/jobs/${id}`, ts });
-      }
-      if (isEmp && status === JobStatus.Disputed) {
-        allNotifs.push({ id: `disputed-emp-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}`, ts });
-      }
-      if (isEmp && status === JobStatus.Resolved) {
-        allNotifs.push({ id: `resolved-emp-${id}`, type: "resolved", label: "Dispute resolved", sub: title, href: `/jobs/${id}`, ts });
-      }
+    if (jobsData) {
+      jobsData.forEach((r, i) => {
+        if (r.status !== "success" || !r.result) return;
+        const job       = r.result as any;
+        const id        = allIds[i];
+        const status    = Number(job.status ?? 0);
+        const title     = job.title || shortAddr(id, 6);
+        const isEmp     = employerJobIds.includes(id);
+        const isAgt     = agentJobIds.includes(id);
+        const isMyAgent = agentId && job.assignedAgent === agentId;
+        // Include deliverable suffix so each new submission/revision round gets a unique ID
+        const dSuf = suf(job.deliverableURI);
 
-      // ── Agent notifications ──────────────────────────────────────────────
-      if (isAgt && !isEmp && status === JobStatus.Assigned && isMyAgent) {
-        allNotifs.push({ id: `assigned-${id}`, type: "assigned", label: "You were assigned to a job", sub: title, href: `/jobs/${id}`, ts });
-      }
-      // Revision: InProgress + has deliverable = employer sent work back
-      if (isAgt && !isEmp && status === JobStatus.InProgress && isMyAgent && job.deliverableURI) {
-        allNotifs.push({ id: `revision-${id}`, type: "revision", label: "Revision requested — open to read message", sub: title, href: `/jobs/${id}`, ts });
-      }
-      if (isAgt && status === JobStatus.Completed && isMyAgent) {
-        allNotifs.push({ id: `paid-${id}`, type: "completed", label: "Payment released 🎉", sub: title, href: `/jobs/${id}`, ts });
-      }
-      if (isAgt && status === JobStatus.Disputed && isMyAgent) {
-        allNotifs.push({ id: `disputed-agt-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}`, ts });
-      }
-      if (isAgt && status === JobStatus.Resolved && isMyAgent) {
-        allNotifs.push({ id: `resolved-agt-${id}`, type: "resolved", label: "Dispute resolved — check outcome", sub: title, href: `/jobs/${id}`, ts });
-      }
-      if (isAgt && status === JobStatus.Cancelled && isMyAgent) {
-        allNotifs.push({ id: `cancelled-${id}`, type: "cancelled", label: "Job was cancelled", sub: title, href: `/jobs/${id}`, ts });
-      }
+        // ── Employer ──────────────────────────────────────────────────────────
+        if (isEmp && status === JobStatus.InProgress && !job.deliverableURI)
+          fresh.push({ id: `started-${id}`, type: "started", label: "Agent started working", sub: title, href: `/jobs/${id}` });
+
+        if (isEmp && status === JobStatus.Submitted)
+          // ID includes deliverable suffix → employer notified for EACH new submission round
+          fresh.push({ id: `review-${id}-${dSuf}`, type: "approval_needed", label: "Review deliverable", sub: title, href: `/jobs/${id}` });
+
+        if (isEmp && status === JobStatus.Disputed)
+          fresh.push({ id: `disputed-emp-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}` });
+
+        if (isEmp && status === JobStatus.Resolved)
+          fresh.push({ id: `resolved-emp-${id}`, type: "resolved", label: "Dispute resolved", sub: title, href: `/jobs/${id}` });
+
+        // ── Agent ─────────────────────────────────────────────────────────────
+        if (isAgt && !isEmp && status === JobStatus.Assigned && isMyAgent)
+          fresh.push({ id: `assigned-${id}`, type: "assigned", label: "You were assigned to a job", sub: title, href: `/jobs/${id}` });
+
+        // Revision: InProgress + deliverable = employer sent work back
+        // ID includes deliverable suffix → unique per revision round
+        if (isAgt && !isEmp && status === JobStatus.InProgress && isMyAgent && job.deliverableURI)
+          fresh.push({ id: `revision-${id}-${dSuf}`, type: "revision", label: "Revision requested — tap to read message", sub: title, href: `/jobs/${id}` });
+
+        if (isAgt && status === JobStatus.Completed && isMyAgent)
+          fresh.push({ id: `paid-${id}`, type: "completed", label: "Payment released 🎉", sub: title, href: `/jobs/${id}` });
+
+        if (isAgt && status === JobStatus.Disputed && isMyAgent)
+          fresh.push({ id: `disputed-agt-${id}`, type: "disputed", label: "Job is under dispute", sub: title, href: `/jobs/${id}` });
+
+        if (isAgt && status === JobStatus.Resolved && isMyAgent)
+          fresh.push({ id: `resolved-agt-${id}`, type: "resolved", label: "Dispute resolved — check outcome", sub: title, href: `/jobs/${id}` });
+
+        if (isAgt && status === JobStatus.Cancelled && isMyAgent)
+          fresh.push({ id: `cancelled-${id}`, type: "cancelled", label: "Job was cancelled", sub: title, href: `/jobs/${id}` });
+      });
+    }
+
+    if (applicantsData) {
+      applicantsData.forEach((r, i) => {
+        if (r.status !== "success" || !r.result) return;
+        const ids = r.result as unknown as `0x${string}`[];
+        if (ids.length === 0) return;
+        const jobId = openEmpIds[i];
+        const jobIdx = allIds.indexOf(jobId);
+        const jobR  = jobsData?.[jobIdx];
+        const title = (jobR?.status === "success" && (jobR.result as any)?.title)
+          ? (jobR.result as any).title : shortAddr(jobId, 6);
+        // Count in ID → new notification whenever a new applicant arrives
+        fresh.push({ id: `applicants-${jobId}-${ids.length}`, type: "applicants", label: `${ids.length} applicant${ids.length > 1 ? "s" : ""} waiting`, sub: title, href: `/jobs/${jobId}` });
+      });
+    }
+
+    if (fresh.length === 0) return;
+
+    // Merge: only add IDs that are genuinely new (never seen before)
+    setStored(prev => {
+      const existingIds = new Set(prev.map(n => n.id));
+      const newOnes: StoredNotif[] = fresh
+        .filter(n => !existingIds.has(n.id))
+        .map(n => ({ ...n, read: false, addedAt: Date.now() }));
+      if (newOnes.length === 0) return prev; // nothing changed
+      // Newest first, cap at 100 to keep localStorage lean
+      const merged = [...newOnes, ...prev].slice(0, 100);
+      saveNotifs(address, merged);
+      return merged;
     });
-  }
+  }, [jobsData, applicantsData]); // eslint-disable-line
 
-  if (applicantsData) {
-    applicantsData.forEach((r, i) => {
-      if (r.status !== "success" || !r.result) return;
-      const ids = r.result as unknown as `0x${string}`[];
-      if (ids.length === 0) return;
-      const jobId = openEmpIds[i];
-      const jobIdx = allIds.indexOf(jobId);
-      const jobR   = jobsData?.[jobIdx];
-      const title  = (jobR?.status === "success" && (jobR.result as any)?.title)
-        ? (jobR.result as any).title : shortAddr(jobId, 6);
-      const ts     = jobR?.status === "success" ? Number((jobR.result as any)?.createdAt ?? 0) : 0;
-      // Include count in ID → re-triggers when new applicant arrives after dismissal
-      allNotifs.push({ id: `applicants-${jobId}-${ids.length}`, type: "applicants", label: `${ids.length} applicant${ids.length > 1 ? "s" : ""} waiting`, sub: title, href: `/jobs/${jobId}`, ts });
+  // ── User actions ──────────────────────────────────────────────────────────────
+
+  /** Click notification → mark as read. Stays in list, removed from badge count. */
+  const markRead = (id: string) => {
+    if (!address) return;
+    setStored(prev => {
+      const updated = prev.map(n => n.id === id ? { ...n, read: true } : n);
+      saveNotifs(address, updated);
+      return updated;
     });
-  }
+  };
 
-  // Sort: newest first (highest createdAt first)
-  allNotifs.sort((a, b) => b.ts - a.ts);
+  /** Mark all visible notifications as read (badge → 0, all still in list). */
+  const markAllRead = () => {
+    if (!address) return;
+    setStored(prev => {
+      const updated = prev.map(n => ({ ...n, read: true }));
+      saveNotifs(address, updated);
+      return updated;
+    });
+  };
 
-  // Hide dismissed notifications — clicking a notification OR pressing X both dismiss it
-  const notifs = allNotifs.filter(n => !dismissed.has(n.id));
+  /** X button → fully remove a single notification from list. */
+  const clearOne = (id: string) => {
+    if (!address) return;
+    const next = new Set([...cleared, id]);
+    setCleared(next);
+    saveCleared(address, next);
+  };
+
+  // ── Derived display ───────────────────────────────────────────────────────────
+
+  // Show all stored notifications that haven't been explicitly cleared
+  const displayed   = stored.filter(n => !cleared.has(n.id));
+  const unreadCount = displayed.filter(n => !n.read).length;
 
   if (!address) return null;
 
-  const count = notifs.length;
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div ref={ref} className="relative">
@@ -240,12 +295,12 @@ export function NotificationBell() {
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />
-        {count > 0 && (
+        {unreadCount > 0 && (
           <span
             className="absolute -top-1 -right-1 min-w-[18px] h-[18px] text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1"
             style={{ background: "#6C63FF", fontWeight: 700 }}
           >
-            {count > 9 ? "9+" : count}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
@@ -267,9 +322,9 @@ export function NotificationBell() {
               Notifications
             </span>
             <div className="flex items-center gap-2">
-              {count > 0 && (
+              {unreadCount > 0 && (
                 <button
-                  onClick={() => dismissAll(notifs.map(n => n.id))}
+                  onClick={markAllRead}
                   className="text-[11px] cursor-pointer border-0 bg-transparent transition-colors"
                   style={{ color: "#8B95A5" }}
                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
@@ -283,58 +338,66 @@ export function NotificationBell() {
                 style={{
                   fontWeight: 600,
                   background: "#E0E5EC",
-                  color: count > 0 ? "#6C63FF" : "#6B7280",
-                  boxShadow: count > 0
+                  color: unreadCount > 0 ? "#6C63FF" : "#6B7280",
+                  boxShadow: unreadCount > 0
                     ? "inset 3px 3px 6px rgb(163,177,198,0.6), inset -3px -3px 6px rgba(255,255,255,0.5)"
                     : "3px 3px 6px rgb(163,177,198,0.5), -3px -3px 6px rgba(255,255,255,0.4)",
                 }}
               >
-                {count}
+                {unreadCount}
               </span>
             </div>
           </div>
 
           {/* List */}
-          {count === 0 ? (
+          {displayed.length === 0 ? (
             <div className="px-5 py-10 text-center">
-              <div className="text-[13px]" style={{ color: "#6B7280" }}>No new notifications</div>
+              <div className="text-[13px]" style={{ color: "#6B7280" }}>No notifications</div>
               <div className="text-[12px] mt-1" style={{ color: "#8B95A5" }}>You&apos;re all caught up ✓</div>
             </div>
           ) : (
             <div className="max-h-72 overflow-y-auto">
-              {notifs.map((n) => (
+              {displayed.map((n) => (
                 <div
                   key={n.id}
                   className="flex items-start gap-3 px-5 py-3.5 group"
-                  style={{ borderBottom: "1px solid rgba(163,177,198,0.2)" }}
+                  style={{
+                    borderBottom: "1px solid rgba(163,177,198,0.2)",
+                    opacity: n.read ? 0.5 : 1,
+                    transition: "opacity 0.2s",
+                  }}
                 >
+                  {/* Dot — coloured when unread, grey when read */}
                   <div
                     className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0"
-                    style={{ background: DOT_COLOR[n.type] }}
+                    style={{ background: n.read ? "#B0BAC9" : DOT_COLOR[n.type] }}
                   />
+
+                  {/* Content — click = mark read + navigate */}
                   <Link
                     href={n.href}
-                    onClick={() => { dismiss(n.id); setOpen(false); }}
+                    onClick={() => { markRead(n.id); setOpen(false); }}
                     className="flex-1 min-w-0 hover:no-underline"
                   >
                     <div
                       className="text-[13px] leading-snug transition-colors"
-                      style={{ fontWeight: 500, color: "#3D4852" }}
+                      style={{ fontWeight: n.read ? 400 : 600, color: n.read ? "#8B95A5" : "#3D4852" }}
                       onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
-                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#3D4852"}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = n.read ? "#8B95A5" : "#3D4852"}
                     >
                       {n.label}
                     </div>
-                    <div className="text-[12px] truncate mt-0.5" style={{ color: "#6B7280" }}>{n.sub}</div>
+                    <div className="text-[12px] truncate mt-0.5" style={{ color: "#8B95A5" }}>{n.sub}</div>
                   </Link>
-                  {/* X button — dismiss without navigating, shown for all notifications */}
+
+                  {/* X — explicitly remove from list */}
                   <button
-                    onClick={e => { e.stopPropagation(); dismiss(n.id); }}
+                    onClick={e => { e.stopPropagation(); clearOne(n.id); }}
                     className="shrink-0 mt-0.5 cursor-pointer border-0 bg-transparent p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                     style={{ color: "#8B95A5" }}
                     onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#EF4444"}
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
-                    title="Dismiss"
+                    title="Remove"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
