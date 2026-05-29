@@ -5,7 +5,7 @@ import { useParams }    from "next/navigation";
 import Link             from "next/link";
 import { Loader2, Send, RotateCcw, CheckCircle2, ExternalLink, ArrowLeft, Star, Shield, Clock, DollarSign, ChevronRight, MessageSquare } from "lucide-react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from "wagmi";
-import { parseAbiItem, type AbiEvent } from "viem";
+import { keccak256, toBytes, decodeAbiParameters } from "viem";
 import toast            from "react-hot-toast";
 import { CONTRACT_ADDRESSES, JOB_REGISTRY_ABI, AGENT_REGISTRY_ABI } from "@/lib/contracts";
 import { formatUsdc, formatDeadline, timeAgo, shortAddr } from "@/lib/utils";
@@ -115,9 +115,9 @@ function ApplicantRow({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const REVISION_REQUESTED_EVENT = parseAbiItem(
-  "event RevisionRequested(bytes32 indexed jobId, string feedback)"
-) as AbiEvent;
+// keccak256("RevisionRequested(bytes32,string)") — pre-computed topic for raw log matching
+// This avoids relying on ABI-event getLogs which can fail on some testnet RPCs.
+const REV_TOPIC = keccak256(toBytes("RevisionRequested(bytes32,string)"));
 
 export default function JobDetailPage() {
   const params = useParams<{ jobId: string }>();
@@ -255,14 +255,15 @@ export default function JobDetailPage() {
     else toast.error(msg.slice(0, 80));
   }, [revisionError]);  // eslint-disable-line
 
-  // ── Fetch latest revision feedback from RevisionRequested event logs ────
-  // Banner is shown based on job STATE (InProgress + deliverable) — this is just best-effort
-  // to load the employer's specific message text.
+  // ── Fetch latest revision feedback using raw log matching ──────────────────
+  // Strategy: raw getLogs (address-only, no ABI event filter) in small chunks,
+  // then manually match by topic and decode the string data.
+  // This is more compatible with Arc testnet RPCs that limit block ranges.
   useEffect(() => {
     const job = jobRaw as any;
     if (!job) return;
     const status = Number(job.status ?? -1);
-    // Show banner whenever InProgress + previous deliverable exists (= revision was requested)
+    // Banner shown whenever InProgress + prior deliverable (= revision requested)
     if (status !== JobStatus.InProgress || !job.deliverableURI) {
       setRevisionFeedback(null);
       setRevisionLoaded(false);
@@ -274,41 +275,71 @@ export default function JobDetailPage() {
 
     let cancelled = false;
 
-    (async () => {
+    const searchRange = async (fromBlock: bigint, toBlock: bigint | "latest"): Promise<string | null> => {
       try {
-        // Use dynamic fromBlock: last 200k blocks covers any recent revision
-        const latestBlock = await publicClient.getBlockNumber();
-        const fromBlock = latestBlock > 200_000n
-          ? latestBlock - 200_000n
-          : 44_380_000n;
-
+        // Raw getLogs — no ABI event filter, just contract address + block range
         const logs = await publicClient.getLogs({
-          address:   CONTRACT_ADDRESSES.jobRegistry,
-          event:     REVISION_REQUESTED_EVENT,
+          address:   CONTRACT_ADDRESSES.jobRegistry as `0x${string}`,
           fromBlock,
-          toBlock:   "latest",
+          toBlock,
         });
 
-        if (cancelled) return;
-
-        // Case-insensitive jobId match
-        const jobLogs = logs.filter(
-          l => ((l.args as any)?.jobId as string)?.toLowerCase() === jobId.toLowerCase()
+        // Match by topic[0] = RevisionRequested signature hash
+        // Match by topic[1] = jobId (bytes32 indexed param)
+        const matched = logs.filter(l =>
+          l.topics?.[0]?.toLowerCase() === REV_TOPIC.toLowerCase() &&
+          l.topics?.[1]?.toLowerCase() === jobId.toLowerCase()
         );
 
-        if (jobLogs.length > 0) {
-          const feedback = (jobLogs[jobLogs.length - 1].args as any)?.feedback as string | undefined;
-          setRevisionFeedback(feedback ?? "");
-        } else {
+        if (matched.length === 0) return null;
+
+        // Decode feedback string from ABI-encoded data field
+        const latest = matched[matched.length - 1];
+        const [feedback] = decodeAbiParameters([{ type: "string" }], latest.data);
+        return (feedback as string) || null;
+      } catch {
+        return null; // range failed (block limit, etc.) — try next chunk
+      }
+    };
+
+    (async () => {
+      try {
+        const latest = await publicClient.getBlockNumber();
+        const DEPLOY  = 44_380_000n;
+
+        // Search in progressively larger backward chunks starting from most recent.
+        // Chunk sizes chosen to stay within typical RPC block-range limits (~2000 blocks).
+        const chunks: [bigint, bigint | "latest"][] = [
+          [latest > 2_000n ? latest - 2_000n : DEPLOY, "latest"],           // last ~47 min
+          [latest > 10_000n ? latest - 10_000n : DEPLOY,
+           latest > 2_000n ? latest - 2_001n : DEPLOY],                     // 47 min – 3.9 h
+          [latest > 50_000n ? latest - 50_000n : DEPLOY,
+           latest > 10_000n ? latest - 10_001n : DEPLOY],                   // 3.9 h – 19 h
+          [DEPLOY, latest > 50_000n ? latest - 50_001n : DEPLOY],           // full history
+        ];
+
+        for (const [from, to] of chunks) {
+          if (cancelled) return;
+          if (from >= (to === "latest" ? latest : to)) continue; // skip empty range
+          const found = await searchRange(from, to);
+          if (found !== null && !cancelled) {
+            setRevisionFeedback(found);
+            setRevisionLoaded(true);
+            return;
+          }
+        }
+
+        // All chunks searched — no message found
+        if (!cancelled) {
           setRevisionFeedback("");
+          setRevisionLoaded(true);
         }
       } catch (err) {
         if (!cancelled) {
-          console.error("getLogs failed:", err);
-          setRevisionFeedback(""); // failed — show banner without text
+          console.error("Revision fetch error:", err);
+          setRevisionFeedback("");
+          setRevisionLoaded(true);
         }
-      } finally {
-        if (!cancelled) setRevisionLoaded(true);
       }
     })();
 
@@ -594,7 +625,7 @@ export default function JobDetailPage() {
                                   </p>
                                 ) : (
                                   <p className="text-[13px]" style={{ color: "#8B95A5" }}>
-                                    (No message left — contact employer directly)
+                                    (Message could not be fetched — ask employer directly)
                                   </p>
                                 )}
                               </div>
