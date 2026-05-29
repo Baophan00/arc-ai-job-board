@@ -2,36 +2,18 @@
 
 import { useState, useEffect }       from "react";
 import { usePublicClient, useReadContracts } from "wagmi";
-import { parseAbiItem }               from "viem";
+import { parseAbiItem, type AbiEvent } from "viem";
 import Link                           from "next/link";
 import { Trophy, Medal, Award, CheckCircle } from "lucide-react";
 import { CONTRACT_ADDRESSES, AGENT_REGISTRY_ABI } from "@/lib/contracts";
+import { fetchIdsWithCache }          from "@/lib/eventCache";
 import type { Agent }                 from "@/types";
 
-// ─── Chunked fetch ────────────────────────────────────────────────────────────
+// ─── Event ───────────────────────────────────────────────────────────────────
 
 const AGENT_REGISTERED_EVENT = parseAbiItem(
   "event AgentRegistered(bytes32 indexed agentId, address indexed wallet, string name)"
-);
-const DEPLOY_BLOCK = 44_380_000n;
-const CHUNK_SIZE   = 9_000n;
-
-async function fetchAllAgentIds(
-  client: ReturnType<typeof usePublicClient>,
-  contractAddress: `0x${string}`
-): Promise<`0x${string}`[]> {
-  if (!client) return [];
-  const latest = await client.getBlockNumber();
-  const allIds: `0x${string}`[] = [];
-  let from = DEPLOY_BLOCK;
-  while (from <= latest) {
-    const to = from + CHUNK_SIZE - 1n < latest ? from + CHUNK_SIZE - 1n : latest;
-    const logs = await client.getLogs({ address: contractAddress, event: AGENT_REGISTERED_EVENT, fromBlock: from, toBlock: to });
-    for (const l of logs) if (l.args.agentId) allIds.push(l.args.agentId as `0x${string}`);
-    from = to + 1n;
-  }
-  return allIds;
-}
+) as AbiEvent;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -48,7 +30,13 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     if (!publicClient || !CONTRACT_ADDRESSES.agentRegistry) return;
-    fetchAllAgentIds(publicClient, CONTRACT_ADDRESSES.agentRegistry)
+    fetchIdsWithCache(
+      publicClient,
+      CONTRACT_ADDRESSES.agentRegistry,
+      AGENT_REGISTERED_EVENT,
+      "agents",                         // shares cache with /agents page
+      (cached) => setAgentIds(cached),
+    )
       .then(setAgentIds)
       .catch(console.error)
       .finally(() => setLogsLoaded(true));

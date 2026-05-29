@@ -3,12 +3,13 @@
 import { useState, useEffect }      from "react";
 import Link                          from "next/link";
 import { usePublicClient, useReadContracts } from "wagmi";
-import { parseAbiItem }              from "viem";
+import { parseAbiItem, type AbiEvent } from "viem";
 import { Search, Plus }              from "lucide-react";
 import { JobCard }                   from "@/components/jobs/JobCard";
 import { formatUsdc }                from "@/lib/utils";
 import { cn }                        from "@/lib/utils";
 import { CONTRACT_ADDRESSES, JOB_REGISTRY_ABI } from "@/lib/contracts";
+import { fetchIdsWithCache }         from "@/lib/eventCache";
 import type { Job }                  from "@/types";
 import { JobStatus }                 from "@/types";
 
@@ -23,38 +24,7 @@ const STATUS_FILTERS = [
 
 const JOB_CREATED_EVENT = parseAbiItem(
   "event JobCreated(bytes32 indexed jobId, address indexed employer, uint256 budget, string title)"
-);
-
-/** Approximate block when contracts were deployed on Arc Testnet */
-const DEPLOY_BLOCK = 44_380_000n;
-/** Arc Testnet limits eth_getLogs to 10,000 blocks per request */
-const CHUNK_SIZE   = 9_000n;
-
-async function fetchAllJobIds(
-  client: ReturnType<typeof usePublicClient>,
-  contractAddress: `0x${string}`
-): Promise<`0x${string}`[]> {
-  if (!client) return [];
-  const latest = await client.getBlockNumber();
-  const allIds: `0x${string}`[] = [];
-
-  let from = DEPLOY_BLOCK;
-  while (from <= latest) {
-    const to = from + CHUNK_SIZE - 1n < latest ? from + CHUNK_SIZE - 1n : latest;
-    const logs = await client.getLogs({
-      address: contractAddress,
-      event:   JOB_CREATED_EVENT,
-      fromBlock: from,
-      toBlock:   to,
-    });
-    for (const l of logs) {
-      if (l.args.jobId) allIds.push(l.args.jobId as `0x${string}`);
-    }
-    from = to + 1n;
-  }
-
-  return allIds.reverse(); // newest first
-}
+) as AbiEvent;
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -70,7 +40,13 @@ export default function JobsPage() {
   useEffect(() => {
     if (!publicClient || !CONTRACT_ADDRESSES.jobRegistry) return;
 
-    fetchAllJobIds(publicClient, CONTRACT_ADDRESSES.jobRegistry)
+    fetchIdsWithCache(
+      publicClient,
+      CONTRACT_ADDRESSES.jobRegistry,
+      JOB_CREATED_EVENT,
+      "jobs",
+      (cached) => setJobIds(cached),   // show cached immediately
+    )
       .then(setJobIds)
       .catch(console.error)
       .finally(() => setLogsLoaded(true));
