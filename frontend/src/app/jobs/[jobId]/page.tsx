@@ -193,6 +193,8 @@ export default function JobDetailPage() {
       applyForJob:       "Application submitted ✓",
     };
     toast.success(MSG[lastAction] ?? "Transaction confirmed ✓");
+    // Clear stale revision feedback when agent resubmits deliverable
+    if (lastAction === "submitDeliverable") setRevisionFeedback(null);
     refetch();
     refetchApplicants();
   }, [txSuccess]);  // eslint-disable-line
@@ -223,13 +225,14 @@ export default function JobDetailPage() {
     publicClient.getLogs({
       address:   CONTRACT_ADDRESSES.jobRegistry,
       event:     REVISION_REQUESTED_EVENT,
-      args:      { jobId } as any,
-      fromBlock: 0n,
+      fromBlock: 44_380_000n,   // Arc testnet deploy block
       toBlock:   "latest",
     }).then(logs => {
-      if (logs.length === 0) return;
+      // Filter client-side — more reliable on Arc testnet than indexed arg filter
+      const jobLogs = logs.filter(l => (l.args as any)?.jobId === jobId);
+      if (jobLogs.length === 0) return;
       // Take the latest revision feedback
-      const last = logs[logs.length - 1];
+      const last = jobLogs[jobLogs.length - 1];
       const feedback = (last.args as any).feedback as string | undefined;
       if (feedback) setRevisionFeedback(feedback);
     }).catch(console.error);
