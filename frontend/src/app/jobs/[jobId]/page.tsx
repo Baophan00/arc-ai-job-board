@@ -115,9 +115,9 @@ function ApplicantRow({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-// keccak256("RevisionRequested(bytes32,string)") — pre-computed topic for raw log matching
-// This avoids relying on ABI-event getLogs which can fail on some testnet RPCs.
-const REV_TOPIC = keccak256(toBytes("RevisionRequested(bytes32,string)"));
+// Pre-computed event topic hashes for raw log matching
+const REV_TOPIC      = keccak256(toBytes("RevisionRequested(bytes32,string)"));
+const COMPLETE_TOPIC = keccak256(toBytes("JobCompleted(bytes32,bytes32,uint256,uint256)"));
 
 export default function JobDetailPage() {
   const params = useParams<{ jobId: string }>();
@@ -133,6 +133,8 @@ export default function JobDetailPage() {
   // null = not yet fetched, "" = fetching / not found, string = feedback text
   const [revisionFeedback, setRevisionFeedback] = useState<string | null>(null);
   const [revisionLoaded,   setRevisionLoaded]   = useState(false);
+  // tx hash of the JobCompleted event — used to link to the specific proof transaction
+  const [completionTxHash, setCompletionTxHash] = useState<string | null>(null);
 
   // ── Read job from chain ──────────────────────────────────────────────────
   const { data: jobRaw, isLoading, refetch } = useReadContract({
@@ -340,6 +342,49 @@ export default function JobDetailPage() {
           setRevisionFeedback("");
           setRevisionLoaded(true);
         }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [publicClient, jobRaw, jobId]);   // eslint-disable-line
+
+  // ── Fetch JobCompleted tx hash — used to link to specific proof transaction ──
+  useEffect(() => {
+    const job = jobRaw as any;
+    if (!job) return;
+    if (Number(job.status ?? -1) !== JobStatus.Completed) { setCompletionTxHash(null); return; }
+    if (!publicClient || !CONTRACT_ADDRESSES.jobRegistry) return;
+
+    let cancelled = false;
+
+    const searchCompleted = async (fromBlock: bigint, toBlock: bigint | "latest"): Promise<string | null> => {
+      try {
+        const logs = await publicClient.getLogs({
+          address:   CONTRACT_ADDRESSES.jobRegistry as `0x${string}`,
+          fromBlock,
+          toBlock,
+        });
+        const match = logs.find(l =>
+          l.topics?.[0]?.toLowerCase() === COMPLETE_TOPIC.toLowerCase() &&
+          l.topics?.[1]?.toLowerCase() === jobId.toLowerCase()
+        );
+        return match?.transactionHash ?? null;
+      } catch { return null; }
+    };
+
+    (async () => {
+      const latest = await publicClient.getBlockNumber();
+      const DEPLOY = 44_380_000n;
+      const chunks: [bigint, bigint | "latest"][] = [
+        [latest > 2_000n  ? latest - 2_000n  : DEPLOY, "latest"],
+        [latest > 10_000n ? latest - 10_000n : DEPLOY, latest > 2_000n ? latest - 2_001n : DEPLOY],
+        [latest > 50_000n ? latest - 50_000n : DEPLOY, latest > 10_000n ? latest - 10_001n : DEPLOY],
+        [DEPLOY, latest > 50_000n ? latest - 50_001n : DEPLOY],
+      ];
+      for (const [from, to] of chunks) {
+        if (cancelled) return;
+        const txHash = await searchCompleted(from, to);
+        if (txHash && !cancelled) { setCompletionTxHash(txHash); return; }
       }
     })();
 
@@ -616,18 +661,24 @@ export default function JobDetailPage() {
                     {String(job.jobId)}
                   </div>
                 </div>
-                <a
-                  href={`${ARC_EXPLORER_URL}/address/${CONTRACT_ADDRESSES.jobRegistry}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-[10px] hover:no-underline transition-colors"
-                  style={{ color: "#8B95A5" }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
-                  title="View contract on ArcScan"
-                >
-                  ↗
-                </a>
+                {completionTxHash ? (
+                  <a
+                    href={`${ARC_EXPLORER_URL}/tx/${completionTxHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-[10px] hover:no-underline transition-colors"
+                    style={{ color: "#38B2AC", fontWeight: 600 }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#38B2AC"}
+                    title="View payment transaction on ArcScan"
+                  >
+                    View tx ↗
+                  </a>
+                ) : (
+                  <span className="shrink-0 text-[10px] animate-pulse" style={{ color: "#B0BAC9" }}>
+                    …
+                  </span>
+                )}
               </div>
             </div>
           )}
