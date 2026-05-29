@@ -43,27 +43,62 @@ export default function AgentProfilePage() {
   const agentId = params.agentId as `0x${string}`;
 
   const { address } = useAccount();
+
+  // ── Edit URI state ───────────────────────────────────────────────────────
   const [editingURI, setEditingURI] = useState(false);
   const [newURI,     setNewURI]     = useState("");
 
-  const { writeContract, data: txHash, isPending } = useWriteContract();
-  const { isLoading: isMining, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-  const saving = isPending || isMining;
+  const { writeContract: writeUri,    data: uriHash,    isPending: uriPending    } = useWriteContract();
+  const { writeContract: writeSkills, data: skillsHash, isPending: skillsPending } = useWriteContract();
 
-  if (isSuccess && editingURI) {
+  const { isLoading: uriMining,    isSuccess: uriSuccess    } = useWaitForTransactionReceipt({ hash: uriHash    });
+  const { isLoading: skillsMining, isSuccess: skillsSuccess } = useWaitForTransactionReceipt({ hash: skillsHash });
+
+  const savingUri    = uriPending    || uriMining;
+  const savingSkills = skillsPending || skillsMining;
+
+  // ── Edit skills state ────────────────────────────────────────────────────
+  const [editingSkills, setEditingSkills] = useState(false);
+  const [editSkillsList, setEditSkillsList] = useState<string[]>([]);
+  const [skillInput,    setSkillInput]    = useState("");
+
+  if (uriSuccess && editingURI) {
     toast.success("Agent URI updated!");
     setEditingURI(false);
     setNewURI("");
   }
 
+  if (skillsSuccess && editingSkills) {
+    toast.success("Skills updated!");
+    setEditingSkills(false);
+    setSkillInput("");
+  }
+
   const handleSaveURI = () => {
     if (!newURI.trim()) return toast.error("URI cannot be empty");
-    writeContract({
+    writeUri({
       address:      CONTRACT_ADDRESSES.agentRegistry,
       abi:          AGENT_REGISTRY_ABI,
       functionName: "setAgentURI",
       args:         [agentId, newURI.trim()],
     });
+  };
+
+  const handleSaveSkills = () => {
+    if (editSkillsList.length === 0) return toast.error("Add at least one skill");
+    writeSkills({
+      address:      CONTRACT_ADDRESSES.agentRegistry,
+      abi:          AGENT_REGISTRY_ABI,
+      functionName: "updateSkills",
+      args:         [agentId, editSkillsList],
+    });
+  };
+
+  const addEditSkill = (s: string) => {
+    const trimmed = s.trim();
+    if (!trimmed || editSkillsList.includes(trimmed) || editSkillsList.length >= 20) return;
+    setEditSkillsList([...editSkillsList, trimmed]);
+    setSkillInput("");
   };
 
   const { data: agentRaw, isLoading } = useReadContract({
@@ -219,19 +254,99 @@ export default function AgentProfilePage() {
             </div>
 
             {/* Skills */}
-            {agent.skills?.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-5">
-                {agent.skills.map((s) => (
-                  <span
-                    key={s}
-                    className="px-2.5 py-0.5 rounded-full text-[11px]"
-                    style={{ fontWeight: 500, color: getSkillColor(s), background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[12px]" style={{ color: "#8B95A5" }}>Skills</span>
+                {isOwner && !editingSkills && (
+                  <button
+                    onClick={() => { setEditingSkills(true); setEditSkillsList([...(agent.skills ?? [])]); }}
+                    className="flex items-center gap-1 text-[11px] cursor-pointer border-0 bg-transparent p-0 transition-colors"
+                    style={{ color: "#8B95A5" }}
+                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
                   >
-                    {s}
-                  </span>
-                ))}
+                    <Pencil className="h-3 w-3" /> Edit
+                  </button>
+                )}
               </div>
-            )}
+
+              {!editingSkills ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {(agent.skills ?? []).map((s) => (
+                    <span
+                      key={s}
+                      className="px-2.5 py-0.5 rounded-full text-[11px]"
+                      style={{ fontWeight: 500, color: getSkillColor(s), background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {/* Current edit list */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {editSkillsList.map((s) => (
+                      <span
+                        key={s}
+                        className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px]"
+                        style={{ fontWeight: 500, color: "#6C63FF", background: "#E0E5EC", boxShadow: NEU_INSET_SM }}
+                      >
+                        {s}
+                        <button
+                          onClick={() => setEditSkillsList(editSkillsList.filter(x => x !== s))}
+                          className="cursor-pointer border-0 bg-transparent p-0 ml-0.5"
+                          style={{ color: "#8B95A5", lineHeight: 1 }}
+                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#EF4444"}
+                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  {/* Add skill input */}
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Add skill…"
+                      value={skillInput}
+                      onChange={e => setSkillInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addEditSkill(skillInput); } }}
+                      className="flex-1 px-3 py-1.5 rounded-xl text-[12px] outline-none"
+                      style={{ background: "#E0E5EC", color: "#3D4852", boxShadow: NEU_INSET }}
+                    />
+                    <button
+                      onClick={() => addEditSkill(skillInput)}
+                      className="px-2.5 py-1.5 rounded-xl text-white text-[12px] border-0 cursor-pointer"
+                      style={{ background: "#6C63FF", boxShadow: NEU_SM }}
+                    >
+                      +
+                    </button>
+                  </div>
+                  {/* Save / Cancel */}
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={handleSaveSkills}
+                      disabled={savingSkills}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[12px] text-white border-0 cursor-pointer"
+                      style={{ fontWeight: 600, background: "#6C63FF", boxShadow: NEU_SM, opacity: savingSkills ? 0.7 : 1 }}
+                    >
+                      {savingSkills ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                      {skillsPending ? "Confirm…" : skillsMining ? "Saving…" : "Save Skills"}
+                    </button>
+                    <button
+                      onClick={() => { setEditingSkills(false); setSkillInput(""); }}
+                      disabled={savingSkills}
+                      className="p-1.5 rounded-xl border-0 cursor-pointer"
+                      style={{ background: "#E0E5EC", boxShadow: NEU_SM, color: "#6B7280" }}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Links */}
             <div
@@ -298,16 +413,16 @@ export default function AgentProfilePage() {
                     <div className="flex gap-2">
                       <button
                         onClick={handleSaveURI}
-                        disabled={saving}
+                        disabled={savingUri}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] text-white border-0 cursor-pointer transition-all"
-                        style={{ fontWeight: 600, background: "#6C63FF", boxShadow: NEU_SM, opacity: saving ? 0.7 : 1 }}
+                        style={{ fontWeight: 600, background: "#6C63FF", boxShadow: NEU_SM, opacity: savingUri ? 0.7 : 1 }}
                       >
-                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                        {isPending ? "Confirm..." : isMining ? "Saving..." : "Save"}
+                        {savingUri ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                        {uriPending ? "Confirm..." : uriMining ? "Saving..." : "Save"}
                       </button>
                       <button
                         onClick={() => { setEditingURI(false); setNewURI(""); }}
-                        disabled={saving}
+                        disabled={savingUri}
                         className="p-2 rounded-xl border-0 cursor-pointer transition-all"
                         style={{ background: "#E0E5EC", boxShadow: NEU_SM, color: "#6B7280" }}
                       >

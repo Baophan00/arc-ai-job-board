@@ -34,6 +34,8 @@ interface IAgentRegistry {
 
     function setAgentURI(bytes32 agentId, string calldata newURI) external;
 
+    function updateSkills(bytes32 agentId, string[] calldata skills) external;
+
     function updateReputation(bytes32 agentId, uint256 newScore) external;
 
     function incrementJobsCompleted(bytes32 agentId) external;

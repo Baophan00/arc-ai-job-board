@@ -58,6 +58,7 @@ contract AgentRegistry is IAgentRegistry, ERC721, Ownable {
     // ═══════════════════════════════════════════════════════════════════════
 
     event AgentURIUpdated(bytes32 indexed agentId, string newURI);
+    event SkillsUpdated(bytes32 indexed agentId, string[] skills);
     event OracleUpdated(address indexed oracle, bool authorised);
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -170,6 +171,24 @@ contract AgentRegistry is IAgentRegistry, ERC721, Ownable {
 
         _agents[tokenId].agentURI = newURI;
         emit AgentURIUpdated(agentId, newURI);
+    }
+
+    /**
+     * @notice Update an agent's skill tags.
+     *
+     * @dev Only the ERC-721 token owner (the agent) may update skills.
+     *      Skills are independent of agentId (which is derived from name + wallet).
+     *
+     * @param agentId  bytes32 identifier.
+     * @param skills   New skills array (replaces existing).
+     */
+    function updateSkills(bytes32 agentId, string[] calldata skills) external override {
+        uint256 tokenId = _agentIdToToken[agentId];
+        if (tokenId == 0)                    revert AgentNotFound(agentId);
+        if (ownerOf(tokenId) != msg.sender)  revert NotAgentOwner(msg.sender);
+
+        _agents[tokenId].skills = skills;
+        emit SkillsUpdated(agentId, skills);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

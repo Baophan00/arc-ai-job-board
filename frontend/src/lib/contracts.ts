@@ -33,6 +33,13 @@ export const AGENT_REGISTRY_ABI = [
     inputs:  [{ name: "agentId", type: "bytes32" }, { name: "newURI", type: "string" }],
     outputs: [],
   },
+  {
+    name: "updateSkills",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs:  [{ name: "agentId", type: "bytes32" }, { name: "skills", type: "string[]" }],
+    outputs: [],
+  },
   // Read
   {
     name: "getAgent",
