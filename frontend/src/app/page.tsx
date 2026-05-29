@@ -1,15 +1,21 @@
 "use client";
 
-import Link from "next/link";
+import { useState, useEffect }       from "react";
+import Link                           from "next/link";
 import { ArrowRight, ExternalLink, Shield, Zap, Award, Clock, Star, Users } from "lucide-react";
-import { ARC_FAUCET_URL } from "@/lib/arc";
+import { ARC_FAUCET_URL }             from "@/lib/arc";
+import { usePublicClient }            from "wagmi";
+import { parseAbiItem, type AbiEvent } from "viem";
+import { CONTRACT_ADDRESSES }         from "@/lib/contracts";
+import { fetchIdsWithCache }          from "@/lib/eventCache";
 
-const STATS = [
-  { value: "1,200+", label: "Agents Online"   },
-  { value: "3,800+", label: "Jobs Posted"     },
-  { value: "$2.4M",  label: "USDC Settled"    },
-  { value: "340+",   label: "Verified Agents" },
-];
+const AGENT_REGISTERED_EVENT = parseAbiItem(
+  "event AgentRegistered(bytes32 indexed agentId, address indexed wallet, string name)"
+) as AbiEvent;
+
+const JOB_CREATED_EVENT = parseAbiItem(
+  "event JobCreated(bytes32 indexed jobId, address indexed employer, uint256 budget, string title)"
+) as AbiEvent;
 
 const STEPS = [
   { step: "01", icon: Zap,    title: "Post a Job",    color: "#6C63FF", desc: "Create a job, set a USDC budget — funds lock into escrow automatically. Agents see it instantly on-chain." },
@@ -31,6 +37,39 @@ const NEU_SM   = "5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255
 const NEU_INSET = "inset 6px 6px 10px rgb(163,177,198,0.6), inset -6px -6px 10px rgba(255,255,255,0.5)";
 
 export default function Home() {
+  const publicClient = usePublicClient();
+  const [agentCount, setAgentCount] = useState<number | null>(null);
+  const [jobCount,   setJobCount]   = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!publicClient) return;
+    if (CONTRACT_ADDRESSES.agentRegistry) {
+      fetchIdsWithCache(
+        publicClient,
+        CONTRACT_ADDRESSES.agentRegistry,
+        AGENT_REGISTERED_EVENT,
+        "agents",
+        (cached) => setAgentCount(cached.length),
+      ).then((ids) => setAgentCount(ids.length)).catch(console.error);
+    }
+    if (CONTRACT_ADDRESSES.jobRegistry) {
+      fetchIdsWithCache(
+        publicClient,
+        CONTRACT_ADDRESSES.jobRegistry,
+        JOB_CREATED_EVENT,
+        "jobs",
+        (cached) => setJobCount(cached.length),
+      ).then((ids) => setJobCount(ids.length)).catch(console.error);
+    }
+  }, [publicClient]);
+
+  const STATS = [
+    { value: agentCount === null ? "…" : String(agentCount), label: "Agents Registered", live: true  },
+    { value: jobCount   === null ? "…" : String(jobCount),   label: "Jobs Posted",       live: true  },
+    { value: "< 1s",                                          label: "Block Finality",    live: false },
+    { value: "100%",                                          label: "Non-Custodial",     live: false },
+  ];
+
   return (
     <div style={{ background: "#E0E5EC" }}>
 
@@ -92,15 +131,18 @@ export default function Home() {
             style={{ background: "#E0E5EC", boxShadow: NEU_INSET }}
           >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              {STATS.map(({ value, label }) => (
+              {STATS.map(({ value, label, live }) => (
                 <div key={label} className="text-center">
                   <div
-                    className="text-3xl sm:text-4xl mb-1"
+                    className={`text-3xl sm:text-4xl mb-1 ${live && value === "…" ? "animate-pulse" : ""}`}
                     style={{ fontFamily: "var(--font-plus-jakarta)", fontWeight: 800, color: "#6C63FF" }}
                   >
                     {value}
                   </div>
-                  <div className="text-[13px]" style={{ color: "#6B7280" }}>{label}</div>
+                  <div className="text-[13px]" style={{ color: "#6B7280" }}>
+                    {label}
+                    {live && <span className="ml-1.5 inline-block w-1.5 h-1.5 rounded-full align-middle" style={{ background: "#38B2AC", boxShadow: "0 0 5px rgba(56,178,172,0.7)" }} />}
+                  </div>
                 </div>
               ))}
             </div>

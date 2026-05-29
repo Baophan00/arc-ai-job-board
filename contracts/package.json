@@ -3,17 +3,17 @@
   "version": "1.0.0",
   "description": "ERC-8004 / ERC-8183 smart contracts for the Arc AI Job Board",
   "scripts": {
-    "compile":  "hardhat compile",
-    "test":     "hardhat test",
+    "compile": "hardhat compile",
+    "test": "hardhat test",
     "deploy:testnet": "hardhat run scripts/deploy.ts --network arcTestnet",
-    "deploy:local":   "hardhat run scripts/deploy.ts --network hardhat",
-    "verify":   "hardhat run scripts/verify.ts --network arcTestnet",
-    "clean":    "hardhat clean",
-    "size":     "hardhat size-contracts"
+    "deploy:local": "hardhat run scripts/deploy.ts --network hardhat",
+    "verify": "hardhat run scripts/verify.ts --network arcTestnet",
+    "clean": "hardhat clean",
+    "size": "hardhat size-contracts"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
     "@types/node": "^20.0.0",
     "hardhat": "^2.20.0",
     "hardhat-contract-sizer": "^2.10.0",
@@ -21,6 +21,7 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^4.9.3"
+    "@openzeppelin/contracts": "^4.9.3",
+    "dotenv": "^17.4.2"
   }
 }
