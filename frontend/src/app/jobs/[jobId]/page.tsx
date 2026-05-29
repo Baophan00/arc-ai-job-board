@@ -180,7 +180,8 @@ export default function JobDetailPage() {
   });
   const assignedAgentWallet = (assignedAgentData as any)?.wallet as `0x${string}` | undefined;
 
-  const [lastAction, setLastAction] = useState("");
+  const [lastAction,       setLastAction]       = useState("");
+  const [assigningAgentId, setAssigningAgentId] = useState<string | null>(null);
 
   // ── General write hook (assign, start, submit, cancel, apply) ────────────
   const { writeContract, data: txHash, isPending, isError: txError, error: txErr } = useWriteContract();
@@ -209,8 +210,8 @@ export default function JobDetailPage() {
       applyForJob:       "Application submitted ✓",
     };
     toast.success(MSG[lastAction] ?? "Transaction confirmed ✓");
-    // Clear stale revision state when agent resubmits deliverable
     if (lastAction === "submitDeliverable") { setRevisionFeedback(null); setRevisionLoaded(false); }
+    if (lastAction === "assignAgent") setAssigningAgentId(null);
     refetch();
     refetchApplicants();
   }, [txSuccess]);  // eslint-disable-line
@@ -227,6 +228,7 @@ export default function JobDetailPage() {
     } else {
       toast.error(msg.slice(0, 80));
     }
+    setAssigningAgentId(null); // clear on any error
   }, [txError]);  // eslint-disable-line
 
   // ── Approve success / error ────────────────────────────────────────────────
@@ -1150,8 +1152,11 @@ export default function JobDetailPage() {
                       <ApplicantRow
                         key={id}
                         agentId={id}
-                        onAssign={(agentId) => tx("assignAgent", [job.jobId, agentId])}
-                        assigning={loading}
+                        onAssign={(agentId) => {
+                          setAssigningAgentId(agentId);
+                          tx("assignAgent", [job.jobId, agentId]);
+                        }}
+                        assigning={assigningAgentId === id && loading}
                         showAssign={isEmployer && jobStatus === JobStatus.Open}
                       />
                     ))}
