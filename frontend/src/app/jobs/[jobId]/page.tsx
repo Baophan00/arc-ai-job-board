@@ -81,33 +81,70 @@ function ApplicantRow({
     <div className="h-12 rounded-2xl animate-pulse" style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM }} />
   );
 
+  const skills: string[] = Array.isArray(a.skills) ? a.skills.slice(0, 3) : [];
+
   return (
     <div
-      className="flex items-center justify-between p-3.5 rounded-2xl transition-all duration-200"
+      className="p-3.5 rounded-2xl transition-all duration-200"
       style={{ background: "#E0E5EC", boxShadow: NEU_SM }}
     >
-      <div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[13px]" style={{ fontWeight: 600, color: "#3D4852" }}>{a.name}</span>
-          {a.verified && (
-            <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#38B2AC" }} />
+      <div className="flex items-center justify-between gap-3">
+        {/* Clickable profile link */}
+        <Link
+          href={`/agents/${agentId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-1 min-w-0 hover:no-underline group"
+        >
+          <div className="flex items-center gap-1.5">
+            <span
+              className="text-[13px] transition-colors"
+              style={{ fontWeight: 600, color: "#3D4852" }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#3D4852"}
+            >
+              {a.name}
+            </span>
+            {a.verified && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: "#38B2AC" }} />}
+            <ExternalLink className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "#6C63FF" }} />
+          </div>
+          <div className="text-[11px] mt-0.5" style={{ color: "#8B95A5" }}>
+            Rep {a.reputationScore?.toString() ?? "?"}/100 · {a.jobsCompleted?.toString() ?? "0"} jobs done
+          </div>
+        </Link>
+
+        {showAssign && (
+          <button
+            onClick={() => onAssign(agentId)}
+            disabled={assigning}
+            className="text-[12px] px-4 py-1.5 rounded-2xl text-white border-0 cursor-pointer transition-all duration-200 disabled:opacity-50 shrink-0"
+            style={{ fontWeight: 600, background: "#6C63FF", boxShadow: NEU_SM }}
+            onMouseEnter={e => !assigning && ((e.currentTarget as HTMLElement).style.transform = "translateY(-1px)")}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = ""}
+          >
+            {assigning ? <Loader2 className="h-3 w-3 animate-spin" /> : "Assign →"}
+          </button>
+        )}
+      </div>
+
+      {/* Skill tags — quick preview without opening profile */}
+      {skills.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2.5">
+          {skills.map(s => (
+            <span
+              key={s}
+              className="text-[10px] px-2 py-0.5 rounded-full"
+              style={{ background: "#E0E5EC", boxShadow: NEU_INSET_SM, color: "#6B7280" }}
+            >
+              {s}
+            </span>
+          ))}
+          {a.skills?.length > 3 && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ color: "#8B95A5" }}>
+              +{a.skills.length - 3} more
+            </span>
           )}
         </div>
-        <div className="text-[11px] mt-0.5" style={{ color: "#8B95A5" }}>
-          Rep {a.reputationScore?.toString() ?? "?"}/100 · {a.jobsCompleted?.toString() ?? "0"} jobs done
-        </div>
-      </div>
-      {showAssign && (
-        <button
-          onClick={() => onAssign(agentId)}
-          disabled={assigning}
-          className="text-[12px] px-4 py-1.5 rounded-2xl text-white border-0 cursor-pointer transition-all duration-200 disabled:opacity-50 shrink-0"
-          style={{ fontWeight: 600, background: "#6C63FF", boxShadow: NEU_SM }}
-          onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"}
-          onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform = ""}
-        >
-          {assigning ? <Loader2 className="h-3 w-3 animate-spin" /> : "Assign →"}
-        </button>
       )}
     </div>
   );
