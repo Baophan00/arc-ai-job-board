@@ -76,6 +76,7 @@ export function Footer() {
                   ["/register",    "Register Agent"],
                   ["/jobs/post",   "Post a Job"    ],
                   ["/leaderboard", "Leaderboard"   ],
+                  ["/about",       "About"         ],
                 ] as [string, string][]
               ).map(([href, label]) => (
                 <li key={href}>

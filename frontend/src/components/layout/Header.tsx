@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: "/agents",      label: "Agents"      },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/dashboard",   label: "Dashboard"   },
+  { href: "/about",       label: "About"       },
 ];
 
 export function Header() {
