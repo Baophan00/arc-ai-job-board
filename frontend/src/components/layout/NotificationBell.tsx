@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Bell } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { useAccount, useReadContract, useReadContracts } from "wagmi";
 import Link from "next/link";
 import { CONTRACT_ADDRESSES, JOB_REGISTRY_ABI, AGENT_REGISTRY_ABI } from "@/lib/contracts";
@@ -11,11 +11,29 @@ import { JobStatus } from "@/types";
 type NotifType = "approval_needed" | "assigned" | "completed" | "applicants";
 
 interface Notif {
-  id:    string;
-  type:  NotifType;
-  label: string;
-  sub:   string;
-  href:  string;
+  id:         string;
+  type:       NotifType;
+  label:      string;
+  sub:        string;
+  href:       string;
+  /** true = goes away on its own when on-chain state changes, no need to dismiss */
+  autoClears: boolean;
+}
+
+// ── localStorage helpers for dismissed notification IDs ────────────────────
+const STORAGE_KEY = "agentcywork:dismissed_notifs:v1";
+
+function loadDismissed(): Set<string> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+  } catch { return new Set(); }
+}
+
+function saveDismissed(set: Set<string>) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...set]));
+  } catch { /* storage full / SSR */ }
 }
 
 const ZERO = "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -29,8 +47,12 @@ const DOT_COLOR: Record<NotifType, string> = {
 
 export function NotificationBell() {
   const { address } = useAccount();
-  const [open, setOpen] = useState(false);
+  const [open,      setOpen]      = useState(false);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const ref = useRef<HTMLDivElement>(null);
+
+  // Load dismissed IDs from localStorage on mount
+  useEffect(() => { setDismissed(loadDismissed()); }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -39,6 +61,20 @@ export function NotificationBell() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const dismiss = (id: string) => {
+    const next = new Set(dismissed);
+    next.add(id);
+    setDismissed(next);
+    saveDismissed(next);
+  };
+
+  const dismissAll = (ids: string[]) => {
+    const next = new Set(dismissed);
+    ids.forEach(id => next.add(id));
+    setDismissed(next);
+    saveDismissed(next);
+  };
 
   const { data: empIds } = useReadContract({
     address:      CONTRACT_ADDRESSES.jobRegistry,
@@ -98,7 +134,7 @@ export function NotificationBell() {
     query: { enabled: openEmpIds.length > 0, refetchInterval: 20_000 },
   });
 
-  const notifs: Notif[] = [];
+  const allNotifs: Notif[] = [];
 
   if (jobsData) {
     jobsData.forEach((r, i) => {
@@ -110,14 +146,17 @@ export function NotificationBell() {
       const isEmp  = employerJobIds.includes(id);
       const isAgt  = agentJobIds.includes(id);
 
+      // Employer: deliverable waiting for approval → auto-clears when job moves to Completed
       if (isEmp && status === JobStatus.Submitted) {
-        notifs.push({ id: `submitted-${id}`, type: "approval_needed", label: "Review deliverable", sub: title, href: `/jobs/${id}` });
+        allNotifs.push({ id: `submitted-${id}`, type: "approval_needed", label: "Review deliverable", sub: title, href: `/jobs/${id}`, autoClears: true });
       }
+      // Agent: just got assigned → auto-clears when agent starts job (status → InProgress)
       if (isAgt && !isEmp && status === JobStatus.Assigned && agentId && job.assignedAgent === agentId) {
-        notifs.push({ id: `assigned-${id}`, type: "assigned", label: "You were assigned", sub: title, href: `/jobs/${id}` });
+        allNotifs.push({ id: `assigned-${id}`, type: "assigned", label: "You were assigned", sub: title, href: `/jobs/${id}`, autoClears: true });
       }
+      // Agent: payment released → stays Completed forever, needs manual dismiss
       if (isAgt && status === JobStatus.Completed && agentId && job.assignedAgent === agentId) {
-        notifs.push({ id: `paid-${id}`, type: "completed", label: "Payment released", sub: title, href: `/jobs/${id}` });
+        allNotifs.push({ id: `paid-${id}`, type: "completed", label: "Payment released 🎉", sub: title, href: `/jobs/${id}`, autoClears: false });
       }
     });
   }
@@ -132,9 +171,14 @@ export function NotificationBell() {
       const jobR   = jobsData?.[jobIdx];
       const title  = (jobR?.status === "success" && (jobR.result as any)?.title)
         ? (jobR.result as any).title : shortAddr(jobId, 6);
-      notifs.push({ id: `applicants-${jobId}`, type: "applicants", label: `${ids.length} new applicant${ids.length > 1 ? "s" : ""}`, sub: title, href: `/jobs/${jobId}` });
+      // Include count in ID → re-triggers when new applicant arrives after dismissal
+      allNotifs.push({ id: `applicants-${jobId}-${ids.length}`, type: "applicants", label: `${ids.length} applicant${ids.length > 1 ? "s" : ""} waiting`, sub: title, href: `/jobs/${jobId}`, autoClears: false });
     });
   }
+
+  // Filter out manually dismissed notifications
+  // (auto-clearing ones are not stored in dismissed — they vanish on their own)
+  const notifs = allNotifs.filter(n => n.autoClears || !dismissed.has(n.id));
 
   if (!address) return null;
 
@@ -178,51 +222,84 @@ export function NotificationBell() {
             className="flex items-center justify-between px-5 py-4"
             style={{ borderBottom: "1px solid rgba(163,177,198,0.3)" }}
           >
-            <span className="text-[13px] font-semibold text-[#3D4852]" style={{ fontWeight: 600 }}>
+            <span className="text-[13px]" style={{ fontWeight: 600, color: "#3D4852" }}>
               Notifications
             </span>
-            <span
-              className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full"
-              style={{
-                fontWeight: 600,
-                background: "#E0E5EC",
-                color: count > 0 ? "#6C63FF" : "#6B7280",
-                boxShadow: count > 0
-                  ? "inset 3px 3px 6px rgb(163,177,198,0.6), inset -3px -3px 6px rgba(255,255,255,0.5)"
-                  : "3px 3px 6px rgb(163,177,198,0.5), -3px -3px 6px rgba(255,255,255,0.4)",
-              }}
-            >
-              {count}
-            </span>
+            <div className="flex items-center gap-2">
+              {count > 0 && (
+                <button
+                  onClick={() => dismissAll(notifs.filter(n => !n.autoClears).map(n => n.id))}
+                  className="text-[11px] cursor-pointer border-0 bg-transparent transition-colors"
+                  style={{ color: "#8B95A5" }}
+                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+                >
+                  Mark all read
+                </button>
+              )}
+              <span
+                className="text-[11px] px-2.5 py-0.5 rounded-full"
+                style={{
+                  fontWeight: 600,
+                  background: "#E0E5EC",
+                  color: count > 0 ? "#6C63FF" : "#6B7280",
+                  boxShadow: count > 0
+                    ? "inset 3px 3px 6px rgb(163,177,198,0.6), inset -3px -3px 6px rgba(255,255,255,0.5)"
+                    : "3px 3px 6px rgb(163,177,198,0.5), -3px -3px 6px rgba(255,255,255,0.4)",
+                }}
+              >
+                {count}
+              </span>
+            </div>
           </div>
 
           {/* List */}
           {count === 0 ? (
             <div className="px-5 py-10 text-center">
-              <div className="text-[13px] text-[#6B7280]">No new notifications</div>
-              <div className="text-[12px] text-[#8B95A5] mt-1">You&apos;re all caught up ✓</div>
+              <div className="text-[13px]" style={{ color: "#6B7280" }}>No new notifications</div>
+              <div className="text-[12px] mt-1" style={{ color: "#8B95A5" }}>You&apos;re all caught up ✓</div>
             </div>
           ) : (
             <div className="max-h-72 overflow-y-auto">
               {notifs.map((n) => (
-                <Link
+                <div
                   key={n.id}
-                  href={n.href}
-                  onClick={() => setOpen(false)}
-                  className="flex items-start gap-3 px-5 py-3.5 transition-all duration-200 hover:no-underline group"
+                  className="flex items-start gap-3 px-5 py-3.5 group"
                   style={{ borderBottom: "1px solid rgba(163,177,198,0.2)" }}
                 >
                   <div
                     className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0"
                     style={{ background: DOT_COLOR[n.type] }}
                   />
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-medium text-[#3D4852] leading-snug group-hover:text-[#6C63FF] transition-colors">
+                  <Link
+                    href={n.href}
+                    onClick={() => { if (!n.autoClears) dismiss(n.id); setOpen(false); }}
+                    className="flex-1 min-w-0 hover:no-underline"
+                  >
+                    <div
+                      className="text-[13px] leading-snug transition-colors"
+                      style={{ fontWeight: 500, color: "#3D4852" }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#3D4852"}
+                    >
                       {n.label}
                     </div>
-                    <div className="text-[12px] text-[#6B7280] truncate mt-0.5">{n.sub}</div>
-                  </div>
-                </Link>
+                    <div className="text-[12px] truncate mt-0.5" style={{ color: "#6B7280" }}>{n.sub}</div>
+                  </Link>
+                  {/* Dismiss button — only for non-auto-clearing notifications */}
+                  {!n.autoClears && (
+                    <button
+                      onClick={e => { e.stopPropagation(); dismiss(n.id); }}
+                      className="shrink-0 mt-0.5 cursor-pointer border-0 bg-transparent p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ color: "#8B95A5" }}
+                      onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#EF4444"}
+                      onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+                      title="Dismiss"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}
