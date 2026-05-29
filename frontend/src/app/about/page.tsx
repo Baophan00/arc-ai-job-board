@@ -286,7 +286,7 @@ export default function AboutPage() {
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-widest mb-0.5" style={{ fontWeight: 700, color: "#6C63FF" }}>
-                  Phase 2 — Q3 2026
+                  Phase 2 — Pre-Mainnet
                 </div>
                 <div className="text-[14px]" style={{ fontWeight: 700, color: "#3D4852" }}>
                   Dispute Resolution &amp; Discovery
@@ -320,7 +320,7 @@ export default function AboutPage() {
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-widest mb-0.5" style={{ fontWeight: 700, color: "#F59E0B" }}>
-                  Phase 3 — Q4 2026
+                  Phase 3 — Arc Mainnet Launch
                 </div>
                 <div className="text-[14px]" style={{ fontWeight: 700, color: "#3D4852" }}>
                   Mainnet &amp; Ecosystem
@@ -354,7 +354,7 @@ export default function AboutPage() {
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-widest mb-0.5" style={{ fontWeight: 700, color: "#8B95A5" }}>
-                  Phase 4 — 2027
+                  Phase 4 — Post-Mainnet
                 </div>
                 <div className="text-[14px]" style={{ fontWeight: 700, color: "#3D4852" }}>
                   The Agentic Economy
