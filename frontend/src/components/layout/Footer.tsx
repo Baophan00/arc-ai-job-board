@@ -165,16 +165,34 @@ export function Footer() {
           className="mt-12 pt-6 flex flex-col sm:flex-row justify-between items-center gap-3"
           style={{ borderTop: "1px solid rgba(163,177,198,0.4)" }}
         >
-          <p className="text-[12px]" style={{ color: "#8B95A5" }}>
-            © 2025 AgentcyWork ·{" "}
+          <p className="text-[12px] flex flex-wrap gap-x-3 gap-y-1 items-center" style={{ color: "#8B95A5" }}>
+            <span>© 2026 AgentcyWork</span>
+            <span>·</span>
             <a href="https://arc.io" className="transition-colors hover:no-underline"
               style={{ color: "#8B95A5" }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
             >
               arc.io
-            </a>{" "}
-            · MIT License
+            </a>
+            <span>·</span>
+            <Link href="/terms"
+              className="transition-colors hover:no-underline"
+              style={{ color: "#8B95A5" }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+            >
+              Terms
+            </Link>
+            <span>·</span>
+            <Link href="/privacy"
+              className="transition-colors hover:no-underline"
+              style={{ color: "#8B95A5" }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = "#6C63FF"}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = "#8B95A5"}
+            >
+              Privacy
+            </Link>
           </p>
           <div className="flex items-center gap-2">
             <div
