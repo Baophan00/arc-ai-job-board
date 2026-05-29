@@ -7,10 +7,14 @@ import toast             from "react-hot-toast";
 import Link              from "next/link";
 import { CONTRACT_ADDRESSES, AGENT_REGISTRY_ABI } from "@/lib/contracts";
 
-const SUGGESTED_SKILLS = [
-  "NLP", "Code Review", "Solidity", "Python", "TypeScript", "DeFi",
-  "Security Audit", "Data Analysis", "Arc Chain", "MCP", "CCTP", "Automation",
-  "Foundry", "Hardhat", "GraphQL", "Rust", "Go", "Smart Contracts",
+const SKILL_CATEGORIES = [
+  { label: "Writing",   color: "#F59E0B", skills: ["Copywriting", "Blog Writing", "Technical Writing", "SEO Writing", "Translation", "Summarization", "Proofreading", "Scriptwriting", "Email Drafting", "Newsletter"] },
+  { label: "Research",  color: "#38B2AC", skills: ["Market Research", "Competitor Analysis", "Data Analysis", "Financial Analysis", "Web Scraping", "Fact Checking", "Literature Review", "Trend Analysis"] },
+  { label: "Design",    color: "#EC4899", skills: ["Image Generation", "UI/UX Design", "Logo Design", "Presentation Design", "Infographic", "Brand Identity", "Video Script", "Social Media Graphics"] },
+  { label: "Code",      color: "#6C63FF", skills: ["Python", "TypeScript", "JavaScript", "Rust", "Go", "Solidity", "SQL", "React", "Node.js", "API Integration", "GraphQL", "Code Review"] },
+  { label: "Web3",      color: "#8B5CF6", skills: ["DeFi", "Security Audit", "Smart Contracts", "NFT", "MCP", "Arc Chain", "CCTP", "Foundry", "Hardhat", "Blockchain Analytics", "Tokenomics"] },
+  { label: "Business",  color: "#EF4444", skills: ["Customer Support", "Lead Generation", "Email Marketing", "Social Media", "CRM", "Sales Copy", "Project Management", "Automation", "Data Entry"] },
+  { label: "Data & AI", color: "#059669", skills: ["NLP", "Machine Learning", "Data Cleaning", "Chatbot", "Sentiment Analysis", "OCR", "Text Classification", "Spreadsheet Automation", "Forecasting"] },
 ];
 
 const NEU           = "9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255,0.5)";
@@ -26,6 +30,7 @@ export default function RegisterPage() {
   const [skillInput, setSkillInput] = useState("");
   const [agentURI,   setAgentURI]   = useState("");
   const [done,       setDone]       = useState(false);
+  const [activeCat,  setActiveCat]  = useState(0);
 
   // ── Check if already registered ─────────────────────────────────────────
   const { data: existingAgent } = useReadContract({
@@ -249,18 +254,39 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* Suggested */}
+          {/* Suggested — categorised */}
           <div>
-            <p className="text-[12px] mb-2" style={{ color: "#8B95A5" }}>Quick add:</p>
+            <p className="text-[12px] mb-2" style={{ color: "#8B95A5" }}>Quick add by category:</p>
+
+            {/* Category tabs */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {SKILL_CATEGORIES.map((cat, i) => (
+                <button
+                  key={cat.label}
+                  onClick={() => setActiveCat(i)}
+                  className="text-[11px] px-3 py-1 rounded-full cursor-pointer border-0 transition-all duration-200"
+                  style={{
+                    fontWeight: activeCat === i ? 700 : 500,
+                    color:      activeCat === i ? cat.color : "#6B7280",
+                    background: "#E0E5EC",
+                    boxShadow:  activeCat === i ? NEU_INSET_SM : NEU_SM,
+                  }}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Skills for active category */}
             <div className="flex flex-wrap gap-1.5">
-              {SUGGESTED_SKILLS.filter((s) => !skills.includes(s)).map((s) => (
+              {SKILL_CATEGORIES[activeCat].skills.filter((s) => !skills.includes(s)).map((s) => (
                 <button
                   key={s}
                   onClick={() => addSkill(s)}
                   className="text-[12px] px-3 py-1 rounded-full cursor-pointer border-0 transition-all duration-200"
                   style={{ color: "#6B7280", background: "#E0E5EC", boxShadow: NEU_SM }}
                   onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.color = "#6C63FF";
+                    (e.currentTarget as HTMLElement).style.color = SKILL_CATEGORIES[activeCat].color;
                     (e.currentTarget as HTMLElement).style.boxShadow = NEU_INSET_SM;
                   }}
                   onMouseLeave={e => {
