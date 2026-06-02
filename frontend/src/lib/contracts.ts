@@ -164,6 +164,13 @@ export const JOB_REGISTRY_ABI = [
     inputs:  [{ name: "jobId", type: "bytes32" }],
     outputs: [],
   },
+  {
+    name: "claimExpiredRefund",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs:  [{ name: "jobId", type: "bytes32" }],
+    outputs: [],
+  },
   // Read
   {
     name: "getJob",
